@@ -1,0 +1,1554 @@
+{
+    "package": {},
+    "srcFiles": [
+        {
+            "relativePath": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/core.bsq",
+            "contents": "//-------------------------------------------------------------------------------------------------------\n// Copyright (C) Microsoft. All rights reserved.\n// Licensed under the MIT license. See LICENSE.txt file in the project root for full license information.\n//-------------------------------------------------------------------------------------------------------\n\n//The core namespace implements the primitive types used in the Bosque language\nnamespace NSCore;\n\n//<summary>Special type which all values are instances of.</summary>\nconcept Any {\n    method is<T>(): Bool # special_method\n    method as<T>(): T # special_method\n\n    method tryAs<T>(): T? # special_method\n    method defaultAs<T>(default: T): T # special_method\n\n    method isNone(): Bool # special_method\n    method isSome(): Bool # special_method\n}\n\n//<summary>Special type for representing all non-none values.</summary>\nconcept Some provides Any {\n    method update(): Some # special_method\n    method merge(): Some # special_method\n    method project<T>(): Some # special_method\n    method tryProject<T>(): Some? # special_method\n}\n\n//<summary>A marker concept that indicates a type has a convert method that will allow conversion to a supertype -- used for method override contravariance</summary>\nconcept Convertable provides Any {\n}\n\n//<summary>Special type for indicating this type supports typed string use.</summary>\nconcept Parsable provides Any {\n    abstract static tryParse(str: String): Result<Any, String>;\n}\n\n//<summary>Special type that all Validator (regex etc.) types provide.</summary>\nconcept Validator provides Any {\n    abstract static accepts(str: String): Bool; \n}\n\n//<summary>Special type for indicating a value can be used as a key in a collection.</summary>\nconcept KeyType provides Any {\n    static equal(a: KeyType, b: KeyType): Bool # special_method\n    static less(a: KeyType, b: KeyType): Bool # special_method\n}\n\n//<summary>Type for indicating that a datatype is Plain-Old-Data.</summary>\nconcept PODType provides APIType {\n    static bufferify<T where PODType>(data: T, format?: BufferFormat, encoding?: BufferEncoding, compression?: BufferCompression): Buffer<T> # pod_bufferify\n    static parseBuffer<T where PODType>(data: Buffer<T>): T # pod_parsebuffer\n    static tryParseBuffer<T where PODType>(data: Buffer<T>): Result<T, String> # pod_tryparsebuffer\n}\n\n//<summary>Type to unify Buffers and APITypes at top level for checking</summary>\nconcept APIValue provides Any {\n}\n\n//<summary>Type for indicating that a datatype can be exported as part of a stable API.</summary>\nconcept APIType provides APIValue {\n    static bufferify<T where APIType>(data: T, format?: BufferFormat, encoding?: BufferEncoding, compression?: BufferCompression): Buffer<T> # api_bufferify\n    static parseBuffer<T where APIType>(data: Buffer<T>): T # api_parsebuffer\n    static tryParseBuffer<T where APIType>(data: Buffer<T>): Result<T, String> # api_tryparsebuffer\n}\n\n//<summary>Type for representing the none-value.</summary>\nstruct concept Truthy provides KeyType, Parsable {\n    static truth(v: Truthy): Bool {\n        return !!v;\n    }\n\n    override static tryParse(str: String): Result<Truthy, String> {\n        if(str == \"none\") {\n            return ok(none);\n        }\n        elif(str == \"false\") {\n            return ok(false);\n        }\n        elif(str == \"true\") {\n            return ok(true);\n        }\n        else {\n            return err(\"Expected Truthy\");\n        }\n    }\n}\n\n//<summary>Type for representing the none-value.</summary>\nstruct entity None provides Truthy, PODType, APIType {\n    override static tryParse(str: String): Result<None, String> {\n        if(str == \"none\") {\n            return ok(none);\n        }\n        else {\n            return err(\"Expected None\");\n        }\n    }\n}\n\n//<summary>Primitive boolean value.</summary>\nstruct entity Bool provides Some, Truthy, PODType, APIType {\n    override static tryParse(str: String): Result<Bool, String> {\n        if(str == \"false\") {\n            return ok(false);\n        }\n        elif(str == \"true\") {\n            return ok(true);\n        }\n        else {\n            return err(\"Expected Bool\");\n        }\n    }\n\n    static stringify(b: Bool): String {\n        return b ? \"true\" : \"false\";\n    }\n    \n    static parse(str: String): Bool {\n        check str == \"false\" || str == \"true\";\n        return (str == \"false\") ? false : true;\n    }\n}\n\n//<summary>Primitive integer value.</summary>\nstruct entity Int provides KeyType, Parsable, PODType, APIType, Some {\n    hidden static s_mod(a: Int, b: Int): Int # int_mod\n\n    const min_value: Int = -9007199254740991;\n    const max_value: Int = 9007199254740991;\n\n    override static tryParse(str: String): Result<Int, String> # int_tryparse\n\n    static stringify(i: Int): String # int_tostring\n    static parse(str: String): Int # int_parse\n\n    method toFloat64(): Float64 # int_tofloat\n\n    static max(v1: Int, v2: Int): Int {\n        return v1 > v2 ? v1 : v2;\n    }\n\n    static min(v1: Int, v2: Int): Int {\n        return v1 < v2 ? v1 : v2;\n    }\n\n    static mod(a: Int, b: Int): Int\n        requires release a >= 0 && b > 0;\n    {\n        return Int::s_mod(a, b);\n    }\n}\n\n//<summary>Primitive big-integer value.</summary>\nentity BigInt provides KeyType, Parsable, PODType, APIType, Some {\n    override static tryParse(str: String): Result<BigInt, String> # bigint_tryparse\n\n    static stringify(i: BigInt): String # bigint_tostring\n    static parse(str: String): BigInt # bigint_parse\n}\n\n//<summary>Primitive float 64 value.</summary>\nstruct entity Float64 provides Parsable, PODType, APIType, Some {\n    hidden static s_float_min_value(): Float64 # float_min_value\n    hidden static s_float_max_value(): Float64 # float_max_value\n    hidden static s_float_infinity_value(): Float64 # float_infinity_value\n    hidden static s_float_nan_value(): Float64 # float_nan_value\n\n    const min_value: Float64 = Float64::s_float_min_value();\n    const max_value: Float64 = Float64::s_float_max_value();\n\n    const infinity: Float64 = Float64::s_float_infinity_value();\n    const nan: Float64 = Float64::s_float_nan_value();\n    \n    const pi: Float64 = 3.1415926535897931f;\n    const e: Float64 = 2.7182818284590451f;\n\n    override static tryParse(str: String): Result<Float64, String> # float64_tryparse\n\n    static stringify(f: Float64): String # float64_tostring\n    static parse(str: String): Float64 # float64_parse\n\n    method toInt(): Int # float_toint\n    \n    method isInfinite(): Bool # float64_isinfinity\n    method isNan(): Bool # float64_isnan\n\n    static compare(a: Float64, b: Float64, eps?: Float64): Int # float64_compare\n\n    method abs(): Float64 # float64_abs\n    method ceiling(): Float64 # float64_ceiling\n    method floor(): Float64 # float64_floor\n\n    static pow(x: Float64, y: Float64): Float64 # float64_pow\n    static pow2(v: Float64): Float64 # float64_pow2\n    static pow10(v: Float64): Float64 # float64_pow10\n    static exp(y: Float64): Float64 # float64_exp\n\n    static root(x: Float64, y: Float64): Float64 # float64_root\n\n    method square(): Float64 # float64_square\n    method sqrt(): Float64 # float64_sqrt\n\n    static log(v: Float64): Float64 # float64_log\n    static log2(v: Float64): Float64 # float64_log2\n    static log10(v: Float64): Float64 # float64_log10\n\n    method sin(): Float64 # float64_sin\n    method cos(): Float64 # float64_cos\n    method tan(): Float64 # float64_tan\n\n    static min(v1: Float64, v2: Float64): Float64 # float64_min\n    static max(v1: Float64, v2: Float64): Float64 # float64_max\n\n    static sum(l: List<Float64>): Float64 # float64_sum\n    static product(l: List<Float64>): Float64 # float64_product\n}\n\n//<summary>Primitive string value.</summary>\nentity String provides KeyType, PODType, APIType, Some {\n    private static s_length(s: String): Int # string_count\n    private static s_charat(s: String): Int # string_charat\n    private static s_readline(s: String): String # string_readline\n    private static s_writeline(s: String): String # string_writeline\n    \n    private static s_concat(s1: List<String>): String # string_concat\n\n    private static s_rangeInBounds(str: String, start: Int?, end: Int?): Bool {\n        let s, e = start ?| 0, end ?| String::s_length(str);\n        return 0 <= s && s <= e && e <= String::s_length(str);\n    }\n\n    private static s_substring(s: String, start: Int, end: Int): String # string_substring\n\n    method length(): Int {\n        return String::s_length(this);\n    }\n\n    method readline(): String {\n        return String::s_readline(this);\n    }\n\n    method writeline(msg: String): String {\n        return String::s_writeline(msg);\n    }\n\n    method charAt(idx: Int): String\n        requires release 0 <= idx && idx < String::s_length(this);\n    {\n        return String::s_charat(this, idx);\n    }\n\n    static concat(...args: List<String>): String {\n        if(List<String>::s_size(args) == 0) {\n            return \"\";\n        }\n        elif(List<String>::s_size(args) == 1) {\n            return args.front();\n        }\n        else {\n            return String::s_concat(args);\n        }\n    }\n\n    method substring(start?: Int, end?: Int): String\n        requires release String::s_rangeInBounds(this, start, end);\n    {\n        let s, e = start ?| 0, end ?| String::s_length(this);\n        return String::s_substring(this, s, e);\n    }\n\n    method includes(str: String): Bool # string_includes\n    method startsWith(str: String): Bool # string_startswith\n    method endsWith(str: String): Bool # string_endswith\n\n    method indexOf(str: String): Int # string_indexof\n    method lastIndexOf(str: String): Int # string_indexof\n\n    method split(sep: String): List<String> # string_indexof\n    static join(sep: String, args: List<String>): String # string_join\n\n    method trim(): String # string_trim\n    method trimStart(): String # string_trimstart\n    method trimEnd(): String # string_trimend\n\n    static compare(a: String, b: String): Bool # string_compare\n}\n\n//<summary>Primitive safe string value.</summary>\nentity SafeString<T where Validator> provides KeyType, Some, PODType, APIType, Convertable {\n    private static s_unsafe_from(str: String): SafeString<T> # safestring_unsafe_from\n\n    method string(): String # safestring_string\n\n    static from(str: String): SafeString<T>\n        requires release T::accepts(str);\n    {\n        return SafeString<T>::s_unsafe_from(str);\n    }\n\n    static tryFrom(str: String): SafeString<T>? {\n        return T::accepts(str) ? SafeString<T>::s_unsafe_from(str) : none;\n    }\n\n    method convert<U where Validator>(): SafeString<U> # stringof_convert\n    method tryConvert<U where Validator>(): SafeString<U>? # stringof_tryconvert\n}\n\n//<summary>Primitive stringof value.</summary>\nentity StringOf<T where Parsable> provides APIValue, KeyType, Some, Convertable {\n    private static s_unsafe_from(str: String): StringOf<T> # stringof_unsafe_from\n\n    method string(): String # stringof_string\n\n    static from(str: String): StringOf<T> \n        requires release T::tryParse(str).isOk();\n    {\n        return StringOf<T>::s_unsafe_from(str);\n    }\n\n    static tryFrom(str: String): StringOf<T>? {\n        return T::tryParse(str).isOk() ? StringOf<T>::s_unsafe_from(str) : none;\n    }\n\n    method convert<U where Parsable>(): StringOf<U> # stringof_convert\n    method tryConvert<U where Parsable>(): StringOf<U>? # stringof_tryconvert\n}\n\n//<summary>An efficient buffer encoding for data.</summary>\nentity Buffer<T where PODType | APIType> provides APIValue, Some {\n    method bytes(): ByteBuffer # buffer_bytes\n}\n\n//<summary>An efficient buffer encoding for data.</summary>\nentity BufferOf<T where Parsable> provides APIValue, Some {\n    method bytes(): ByteBuffer # bufferof_bytes\n}\n\nenum BufferFormat {\n    char,\n    bosque,\n    ebosque,\n    json\n}\n\nenum BufferEncoding {\n    utf8,\n    uri,\n    base64,\n    binary\n}\n\nenum BufferCompression {\n    off,\n    rle,\n    time,\n    space\n}\n\n//<summary>An efficient byte buffer for data.</summary>\nentity ByteBuffer provides APIValue, Some {\n}\n\n//<summary>Primitive ISO standard date time value.</summary>\nstruct entity ISOTime provides Parsable, PODType, APIType, Some {\n    override static tryParse(str: String): Result<ISOTime, String> # time_tryparse\n}\n\n//<summary>Primitive UUID value.</summary>\nstruct entity UUID provides KeyType, Parsable, PODType, APIType, Some {\n    override static tryParse(str: String): Result<UUID, String> # uuid_tryparse\n}\n\n//<summary>All actual ordered event times implicitly provide this.</summary>\nstruct entity LogicalTime provides KeyType, Parsable, PODType, APIType, Some {\n    override static tryParse(str: String): Result<LogicalTime, String> # logicaltime_tryparse\n\n    static zero(): LogicalTime # logicaltime_zero\n    static tick(t: LogicalTime): LogicalTime # logicaltime_tick\n}\n\n//<summary>Primitive hash value suitable for content addressable operations or crypto secure digests.</summary>\nentity CryptoHash provides KeyType, Parsable, PODType, APIType, Some {\n    static compute<T>(value: T): CryptoHash # cryptohash_compute\n\n    override static tryParse(str: String): Result<CryptoHash, String> # cryptohash_tryparse\n}\n\n//<summary>All actual enums implicitly provide this.</summary>\nconcept Enum provides KeyType, Some {\n}\n\n//<summary>All actual custom keys implicitly provide this.</summary>\nconcept IdKey provides KeyType, Some {\n}\n\n//<summary>Primitive regex value.</summary>\nentity Regex provides Some {\n    hidden static s_accepts(str: String, start: Int, end: Int): Bool # regex_accepts\n    hidden static s_match(str: String, start: Int, end: Int): Int, Int # regex_match\n\n    hidden static s_rangeInBounds(str: String, start: Int?, end: Int?): Bool {\n        let s, e = start ?| 0, end ?| String::s_length(str);\n        return 0 <= s && s <= e && e <= String::s_length(str); \n    }\n\n    method accepts(str: String, start?: Int, end?: Int): Bool\n        requires release Regex::s_rangeInBounds(s, start, end);\n    {\n        let s, e = start ?| 0, end ?| String::s_length(str);\n        return Regex::s_accepts(str, s, e);\n    }\n\n    method match(str: String, start?: Int, end?: Int): RegexMatch\n        requires release Regex::s_rangeInBounds(s, start, end);\n    {\n        let s, e = start ?| 0, end ?| String::s_length(str);\n\n        let i, l = Regex::s_match(str, s, e);\n        if(l == -1) {\n            return RegexMatch@{ success=false, index=-1, length=-1 };\n        }\n        else {\n            return RegexMatch@{ success=true, index=i, length=l };\n        }\n    }\n}\n\nentity RegexMatch provides Object {\n    field success: Bool;\n    field index: Int;\n    field length: Int;\n}\n\n//<summary>All actual tuples implicitly provide this concept.</summary>\nconcept Tuple provides Some {\n}\n\n//<summary>All actual records implicitly provide this concept.</summary>\nconcept Record provides Some {\n}\n\nstruct entity MapEntry<K where KeyType, V> provides Some, Convertable, PODType when K PODType && V PODType, APIType when K APIType && V APIType {\n    field key: K;\n    field value: V;\n\n    static create(k: K, v: V): MapEntry<K, V> {\n        return MapEntry<K, V>@{ key=key, value=value };\n    }\n\n    method convert<T where KeyType, U>(): MapEntry<T, U> {\n        return MapEntry<T, U>@{ key=this.key.as<T>(), value=this.value.as<U>() };\n    }\n}\n\n//<summary>Providing this concept allows for an entity to be compared or stored in a key based container using the key field.</summary>\nstruct concept Result<T, E=None> provides Some, Convertable, PODType when T PODType && E PODType, APIType when T APIType && E APIType {   \n    static createOk(result: T): Result<T, E> {\n        return Ok<T, E>::of(result);\n    }\n\n    static createErr(info: E): Result<T, E> {\n        return Err<T, E>::of(info);\n    }\n\n    method isOk(): Bool {\n        return this.is<Ok<T, E>>();\n    }\n\n    method isErr(): Bool {\n        return this.is<Err<T, E>>();\n    }\n\n    method result(): T {\n        return this.as<Ok<T, E>>().result;\n    }\n\n    method failure(): E {\n        return this.as<Err<T, E>>().failure;\n    }\n\n    method convert<U, V>(): Result<U, V> {\n        return this.isOk() ? Result<U, V>::createOk(this.result().as<U>()) : Result<U, V>::createErr(this.failure().as<V>());\n    }\n}\n\nstruct entity Ok<T, E=None> provides Result<T, E> {\n    field result: T;\n\n    static of(result: T): Ok<T, E> {\n        return Ok<T, E>@{ result = result };\n    }\n}\n\nstruct entity Err<T, E=None> provides Result<T, E> {\n    field failure: E;\n\n    static of(failure: E): Err<T, E> {\n        return Err<T, E>@{ failure = failure };\n    }\n}\n\nfunction ok(of: Any): Any # special_method\nfunction err(of: Any): Any # special_method\n\n//<summary>All actual entities/concepts implicitly provide this concept.</summary>\nconcept Object provides Some {\n}\n\n//<summary>All collections provide this concept so we can expand them with spread operators.</summary>\nconcept Expandoable<T> provides Object {\n    method expand<U>(): List<U> # special_method\n}\n"
+        },
+        {
+            "relativePath": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/iteration.bsq",
+            "contents": "//-------------------------------------------------------------------------------------------------------\n// Copyright (C) Microsoft. All rights reserved.\n// Licensed under the MIT license. See LICENSE.txt file in the project root for full license information.\n//-------------------------------------------------------------------------------------------------------\n\n//The core namespace implements the primitive concepts used in the bosque core language\nnamespace NSIterate;\n\nrecursive? function while<S>(initial: S, step: recursive? fn(s: S) -> S, cond: recursive? fn(s: S) -> Bool): S # iteration_while\nrecursive? function until<S>(initial: S, step: recursive? fn(s: S) -> S, cond: recursive? fn(s: S) -> Bool): S # iteration_until\n\nrecursive? function steps<S>(initial: S, k: Int, step: recursive? fn(s: S) -> S): S # iteration_steps\n\nrecursive? function reduce<T>(initial: T, vals: List<T>, op: recursive? fn(a: T, b: T) -> T, commutative?: Bool): T # iteration_reduce"
+        },
+        {
+            "relativePath": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/list.bsq",
+            "contents": "//-------------------------------------------------------------------------------------------------------\n// Copyright (C) Microsoft. All rights reserved.\n// Licensed under the MIT license. See LICENSE.txt file in the project root for full license information.\n//-------------------------------------------------------------------------------------------------------\n\n//The core namespace implements the primitive concepts used in the bosque core language\nnamespace NSCore;\n\nentity List<T> provides Object, Expandoable<T>, PODType when T PODType, APIType when T APIType {\n    hidden static s_size(l: List<T>): Int # list_size\n    hidden static s_unsafe_get(l: List<T>, i: Int): T # list_unsafe_get\n\n    hidden static s_concat(l: List<List<T>>): List<T> # list_concat\n    hidden static s_fill(k: Int, val: T): List<T> # list_fill\n\n    hidden static {when T KeyType} s_toset(l: List<T>): Set<T> # list_toset\n\n    hidden recursive? static s_all(l: List<T>, p: recursive? fn(_: T) -> Bool): Bool # list_all\n    hidden recursive? static s_none(l: List<T>, p: recursive? fn(_: T) -> Bool): Bool # list_none\n    hidden recursive? static s_any(l: List<T>, p: recursive? fn(_: T) -> Bool): Bool # list_any\n\n    hidden recursive? static s_count(l: List<T>, p: recursive? fn(_: T) -> Bool): Int # list_count\n    hidden recursive? static s_countnot(l: List<T>, p: recursive? fn(_: T) -> Bool): Int # list_countnot\n\n    hidden recursive? static s_indexof(l: List<T>, s: Int, e: Int, p: recursive? fn(_: T) -> Bool): Int # list_indexof\n    hidden recursive? static s_indexoflast(l: List<T>, s: Int, e: Int, p: recursive? fn(_: T) -> Bool): Int # list_indexoflast\n\n    hidden recursive? static s_indexofnot(l: List<T>, s: Int, e: Int, p: recursive? fn(_: T) -> Bool): Int # list_indexofnot\n    hidden recursive? static s_indexoflastnot(l: List<T>, s: Int, e: Int, p: recursive? fn(_: T) -> Bool): Int # list_indexoflastnot\n\n    hidden recursive? static {when T KeyType} s_count_keytype(l: List<T>, v: T): Int # list_count_keytype\n    hidden recursive? static {when T KeyType} s_indexof_keytype(l: List<T>, s: Int, e: Int, v: T): Int # list_indexof_keytype\n    hidden recursive? static {when T KeyType} s_indexoflast_keytype(l: List<T>, s: Int, e: Int, v: T): Int # list_indexoflast_keytype\n\n    hidden recursive? static {when T KeyType} s_min(l: List<T>): T # list_min\n    hidden recursive? static {when T KeyType} s_max(l: List<T>): T # list_max\n    hidden recursive? static {when T Int | BigInt} s_sum(l: List<T>): T # list_sum\n\n    hidden recursive? static s_filter(l: List<T>, p: recursive? fn(_: T) -> Bool): List<T> # list_filter\n    hidden recursive? static s_filternot(l: List<T>, p: recursive? fn(_: T) -> Bool): List<T> # list_filternot\n\n    hidden recursive? static s_oftype<U>(l: List<T>): List<U> # list_oftype\n    hidden recursive? static s_cast<U>(l: List<T>): List<U> # list_cast\n    hidden recursive? static s_slice(l: List<T>, s: Int, e: Int): List<T> # list_slice\n\n    hidden recursive? static s_takewhile(l: List<T>, p: recursive? fn(_: T) -> Bool): List<T> # list_takewhile\n    hidden recursive? static s_discardwhile(l: List<T>, p: recursive? fn(_: T) -> Bool): List<T> # list_discardwhile\n    hidden recursive? static s_takeuntil(l: List<T>, p: recursive? fn(_: T) -> Bool): List<T> # list_takeuntil\n    hidden recursive? static s_discarduntil(l: List<T>, p: recursive? fn(_: T) -> Bool): List<T> # list_discarduntil\n\n    hidden static {when T KeyType} s_unique(l: List<T>): List<T> # list_unique\n    hidden static s_reverse(l: List<T>): List<T> # list_reverse\n    \n    hidden recursive? static s_map<U>(l: List<T>, f: recursive? fn(_: T) -> U): List<U> # list_map\n    hidden recursive? static s_mapindex<U>(l: List<T>, f: recursive? fn(_: T, _: Int) -> U): List<U> # list_mapindex\n\n    hidden static {when T KeyType} s_projectWMap<U>(l: List<T>, m: Map<T, U>): List<U> # list_project\n    hidden static {when T KeyType} s_tryProjectWMap<U>(l: List<T>, m: Map<T, U>): List<U?> # list_tryproject\n    hidden static {when T KeyType} s_defaultProjectWMap<U>(l: List<T>, m: Map<T, U>, d: U): List<U> # list_defaultproject\n\n    hidden static  s_zipindex(l: List<T>): List<[Int, T]> # list_zipindex\n\n    hidden recursive? static s_join<U>(l: List<T>, ol: List<U>, p: recursive? fn(_: T, _: U) -> Bool): List<[T, U]> # list_join\n    hidden recursive? static s_joingroup<U>(l: List<T>, ol: List<U>, p: recursive? fn(_: T, _: U) -> Bool): List<[T, List<U>]> # list_joingroup\n\n    hidden static s_append(l: List<T>, lp: List<T>): List<T> # list_append\n\n    hidden recursive? static s_partition<K where KeyType>(l: List<T>, pf: recursive? fn(_: T) -> K): Map<K, List<T>> # list_partition\n    hidden recursive? static s_sort(l: List<T>, cmp: recursive? fn(_: T, _: T) -> Bool): List<T> # list_sort\n\n    hidden static s_toIndexMap(l: List<T>): Map<Int, T> # list_toindexmap\n    hidden recursive? static s_transformIndexMap<V>(l: List<T>, vf: recursive? fn(_: T) -> V): Map<Int, V> # list_transformindexmap\n    hidden recursive? static s_transformMap<K where KeyType, V>(l: List<T>, kf: recursive? fn(_: T) -> K, vf: recursive? fn(_: T) -> V): Map<K, V> # list_transformmap\n\n    hidden static s_rangeInBounds(l: List<T>, start: Int?, end: Int?): Bool {\n        let s, e = start ?| 0, end ?| List<T>::s_size(l);\n        return 0 <= s && s <= e && e <= List<T>::s_size(l);\n    }\n\n    static concat(...ll: List<List<T>>): List<T> {\n        return List<T>::s_concat(ll);\n    }\n\n    static fill(k: Int, val: T): List<T>\n        requires release k >= 0;\n    {\n        return List<T>::s_fill(k, val);\n    }\n\n    method size(): Int {\n        return List<T>::s_size(this);\n    }\n\n    method empty(): Bool {\n        return List<T>::s_size(this) == 0;\n    }\n\n    method front(): T \n        requires release List<T>::s_size(this) != 0;\n    {\n        return List<T>::s_unsafe_get(this, 0);\n    }\n\n    method tryFront(): T? {\n        return List<T>::s_size(this) != 0 ? List<T>::s_unsafe_get(this, 0) : none;\n    }\n\n    method defaultFront(default: T): T {\n        return List<T>::s_size(this) != 0 ? List<T>::s_unsafe_get(this, 0) : default;\n    }\n\n    method back(): T \n        requires release List<T>::s_size(this) != 0;\n    {\n        return List<T>::s_unsafe_get(this, List<T>::s_size(this) - 1);\n    }\n\n    method tryBack(): T? {\n        return List<T>::s_size(this) != 0 ? List<T>::s_unsafe_get(this, List<T>::s_size(this) - 1) : none;\n    }\n\n    method defaultBack(default: T): T {\n        return List<T>::s_size(this) != 0 ? List<T>::s_unsafe_get(this, List<T>::s_size(this) - 1) : default;\n    }\n\n    method get(i: Int): T \n        requires release 0 <= i && i < List<T>::s_size(this);\n    {\n        return List<T>::s_unsafe_get(this, i);\n    }\n\n    method tryGet(i: Int): T? \n        requires release 0 <= i;\n    {\n        return i < List<T>::s_size(this) ? List<T>::s_unsafe_get(this, i) : none;\n    }\n\n    method defaultGet(i: Int, default: T): T\n        requires release 0 <= i;\n    {\n        return i < List<T>::s_size(this) ? List<T>::s_unsafe_get(this, i) : default;\n    }\n\n    method {when T KeyType} toSet(): Set<T> {\n        return List<T>::s_toset(this);\n    }\n\n    recursive? method single(p: recursive? fn(_: T) -> Bool): T \n        requires release List<T>::s_size(this) != 0;\n    {\n        let idx = List<T>::s_indexof[recursive?](this, 0, List<T>::s_size(this), p);\n        let lastidx = List<T>::s_indexoflast[recursive?](this, -1, List<T>::s_size(this) - 1, p);\n\n        check lastidx == idx;\n        return List<T>::s_unsafe_get(this, idx);\n    }\n\n    recursive? method trySingle(p: recursive? fn(_: T) -> Bool): T? {\n        let idx = List<T>::s_indexof[recursive?](this, 0, List<T>::s_size(this), p);\n        let lastidx = List<T>::s_indexoflast[recursive?](this, -1, List<T>::s_size(this) - 1, p);\n\n        return idx == lastidx ? List<T>::s_unsafe_get(this, idx) : none;\n    }\n\n    recursive? method defaultSingle(default: T, p: recursive? fn(_: T) -> Bool): T {\n        let idx = List<T>::s_indexof[recursive?](this, 0, List<T>::s_size(this), p);\n        let lastidx = List<T>::s_indexoflast[recursive?](this, -1, List<T>::s_size(this) - 1, p);\n\n        return idx == lastidx ? List<T>::s_unsafe_get(this, idx) : default;\n    }\n\n    method uniform(i: Int, start?: Int, end?: Int): T\n        requires release List<T>::s_size(this) != 0;\n        requires release List<T>::s_rangeInBounds(this, start, end);\n    {\n        abort;\n    }\n\n    recursive? method allOf(p: recursive? fn(_: T) -> Bool): Bool {\n        return List<T>::s_size(this) == 0 || List<T>::s_all[recursive?](this, p);\n    }\n\n    recursive? method noneOf(p: recursive? fn(_: T) -> Bool): Bool {\n        return List<T>::s_size(this) == 0 || List<T>::s_none[recursive?](this, p);\n    }\n\n    recursive? method anyOf(p: recursive? fn(_: T) -> Bool): Bool {\n        return List<T>::s_size(this) != 0 && List<T>::s_any[recursive?](this, p);\n    }\n\n    recursive? method countIf(p: recursive? fn(_: T) -> Bool): Int {\n        return List<T>::s_count[recursive?](this, p);\n    }\n\n    recursive? method countIfNot(p: recursive? fn(_: T) -> Bool): Int {\n        return List<T>::s_countnot[recursive?](this, p);\n    }\n\n    method {when T KeyType} contains(v: T): Bool {\n        return List<T>::s_indexof_keytype(this, 0, List<T>::s_size(this), v) != List<T>::s_size(this);\n    }\n\n    method {when T KeyType} count(v: T): Int {\n        return List<T>::s_count_keytype(this, v);\n    }\n\n    method {when T KeyType} min(): T \n        requires release List<T>::s_size(this) != 0;\n    {\n        return List<T>::s_min(this);\n    }\n\n    method {when T KeyType} tryMin(): T? {\n        return List<T>::s_size(this) != 0 ? List<T>::s_min(this) : none;\n    }\n\n    method {when T KeyType} defaultMin(default: T): T {\n        return List<T>::s_size(this) != 0 ? List<T>::s_min(this) : default;\n    }\n\n    method {when T KeyType} max(): T \n        requires release List<T>::s_size(this) != 0;\n    {\n        return List<T>::s_max(this);\n    }\n\n    method {when T KeyType} tryMax(): T? {\n        return List<T>::s_size(this) != 0 ? List<T>::s_max(this) : none;\n    }\n\n    method {when T KeyType} defaultMax(default: T): T {\n        return List<T>::s_size(this) != 0 ? List<T>::s_max(this) : default;\n    }\n\n    //\n    //TODO: should do argMin/argMax variations on these as well\n    //\n\n    method {when T Int | BigInt} sum(): T {\n        return List<T>::s_sum(this);\n    }\n\n    recursive? method find(p: recursive? fn(_: T) -> Bool): T {\n        let idx = List<T>::s_indexof[recursive?](this, 0, List<T>::s_size(this), p);\n        check idx != List<T>::s_size(this);\n        return List<T>::s_unsafe_get(this, idx);\n    }\n\n    recursive? method tryFind(p: recursive? fn(_: T) -> Bool): T? {\n        let idx = List<T>::s_indexof[recursive?](this, 0, List<T>::s_size(this), p);\n        return idx != List<T>::s_size(this) ? List<T>::s_unsafe_get(this, idx) : none;\n    }\n\n    recursive? method defaultFind(default: T, p: recursive? fn(_: T) -> Bool): T {\n        let idx = List<T>::s_indexof[recursive?](this, 0, List<T>::s_size(this), p);\n        return idx != List<T>::s_size(this) ? List<T>::s_unsafe_get(this, idx) : default;\n    }\n\n    recursive? method findNot(p: recursive? fn(_: T) -> Bool): T {\n        let idx = List<T>::s_indexofnot[recursive?](this, 0, List<T>::s_size(this), p);\n        check idx != List<T>::s_size(this);\n        return List<T>::s_unsafe_get(this, idx);\n    }\n\n    recursive? method tryFindNot(p: recursive? fn(_: T) -> Bool): T? {\n        let idx = List<T>::s_indexofnot[recursive?](this, 0, List<T>::s_size(this), p);\n        return idx != List<T>::s_size(this) ? List<T>::s_unsafe_get(this, idx) : none;\n    }\n\n    recursive? method defaultFindNot(default: T, p: recursive? fn(_: T) -> Bool): T {\n        let idx = List<T>::s_indexofnot[recursive?](this, 0, List<T>::s_size(this), p);\n        return idx != List<T>::s_size(this) ? List<T>::s_unsafe_get(this, idx) : default;\n    }\n\n    recursive? method findLast(p: recursive? fn(_: T) -> Bool): T {\n        let idxlast = List<T>::s_indexoflast[recursive?](this, -1, List<T>::s_size(this) - 1, p);\n        check idxlast != -1;\n        return List<T>::s_unsafe_get(this, idxlast);\n    }\n\n    recursive? method tryFindLast(p: recursive? fn(_: T) -> Bool): T? {\n        let idxlast = List<T>::s_indexoflast[recursive?](this, -1, List<T>::s_size(this) - 1, p);\n        return idxlast != -1 ? List<T>::s_unsafe_get(this, idxlast) : none;\n    }\n\n    recursive? method defaultFindLast(default: T, p: recursive? fn(_: T) -> Bool): T {\n        let idxlast = List<T>::s_indexoflast[recursive?](this, -1, List<T>::s_size(this) - 1, p);\n        return idxlast != -1 ? List<T>::s_unsafe_get(this, idxlast) : default;\n    }\n\n    recursive? method findLastNot(p: recursive? fn(_: T) -> Bool): T {\n        let idxlast = List<T>::s_indexoflastnot[recursive?](this, -1, List<T>::s_size(this) - 1, p);\n        check idxlast != -1;\n        return List<T>::s_unsafe_get(this, idxlast);\n    }\n\n    recursive? method tryFindLastNot(p: recursive? fn(_: T) -> Bool): T? {\n        let idxlast = List<T>::s_indexoflastnot[recursive?](this, -1, List<T>::s_size(this) - 1, p);\n        return idxlast != -1 ? List<T>::s_unsafe_get(this, idxlast) : none;\n    }\n\n    recursive? method defaultFindLastNot(default: T, p: recursive? fn(_: T) -> Bool): T {\n        let idxlast = List<T>::s_indexoflastnot[recursive?](this, -1, List<T>::s_size(this) - 1, p);\n        return idxlast != -1 ? List<T>::s_unsafe_get(this, idxlast) : default;\n    }\n\n    recursive? method findIndexOf(p: recursive? fn(_: T) -> Bool, start?: Int, end?: Int): Int\n        requires release List<T>::s_rangeInBounds(this, start, end);\n    {\n        let s, e = start ?| 0, end ?| List<T>::s_size(this);\n\n        let idx = List<T>::s_indexof[recursive?](this, s, e, p);\n        check idx != e;\n        return idx;\n    }\n\n    recursive? method tryFindIndexOf(p: recursive? fn(_: T) -> Bool, start?: Int, end?: Int): Int?\n        requires release List<T>::s_rangeInBounds(this, start, end);\n    {\n        let s, e = start ?| 0, end ?| List<T>::s_size(this);\n\n        let idx = List<T>::s_indexof[recursive?](this, s, e, p);\n        return idx != e ? idx : none;\n    }\n\n    recursive? method findIndexOfNot(p: recursive? fn(_: T) -> Bool, start?: Int, end?: Int): Int\n        requires release List<T>::s_rangeInBounds(this, start, end);\n    {\n        let s, e = start ?| 0, end ?| List<T>::s_size(this);\n\n        let idx = List<T>::s_indexofnot[recursive?](this, s, e, p);\n        check idx != e;\n        return idx;\n    }\n\n    recursive? method tryFindIndexOfNot(p: recursive? fn(_: T) -> Bool, start?: Int, end?: Int): Int?\n        requires release List<T>::s_rangeInBounds(this, start, end);\n    {\n        let s, e = start ?| 0, end ?| List<T>::s_size(this);\n\n        let idx = List<T>::s_indexofnot[recursive?](this, s, e, p);\n        return idx != e ? idx : none;\n    }\n\n    recursive? method findLastIndexOf(p: recursive? fn(_: T) -> Bool, start?: Int, end?: Int): Int\n        requires release List<T>::s_rangeInBounds(this, start, end);\n    {\n        let s, e = (start ?| 0) - 1, (end ?| List<T>::s_size(this)) - 1;\n\n        let idxlast = List<T>::s_indexoflast[recursive?](this, s, e, p);\n        check idxlast != s;\n        return idxlast;\n    }\n\n    recursive? method tryFindLastIndexOf(p: recursive? fn(_: T) -> Bool, start?: Int, end?: Int): Int?\n        requires release List<T>::s_rangeInBounds(this, start, end);\n    {\n        let s, e = (start ?| 0) - 1, (end ?| List<T>::s_size(this)) - 1;\n\n        let idxlast = List<T>::s_indexoflast[recursive?](this, s, e, p);\n        return idxlast != s ? idxlast : none;\n    }\n\n    recursive? method findLastIndexOfNot(p: recursive? fn(_: T) -> Bool, start?: Int, end?: Int): Int\n        requires release List<T>::s_rangeInBounds(this, start, end);\n    {\n        let s, e = (start ?| 0) - 1, (end ?| List<T>::s_size(this)) - 1;\n\n        let idxlast = List<T>::s_indexoflastnot[recursive?](this, s, e, p);\n        check idxlast != s;\n        return idxlast;\n    }\n\n    recursive? method tryFindLastIndexOfNot(p: recursive? fn(_: T) -> Bool, start?: Int, end?: Int): Int?\n        requires release List<T>::s_rangeInBounds(this, start, end);\n    {\n        let s, e = (start ?| 0) - 1, (end ?| List<T>::s_size(this)) - 1;\n\n        let idxlast = List<T>::s_indexoflastnot[recursive?](this, s, e, p);\n        return idxlast != s ? idxlast : none;\n    }\n\n    method {when T KeyType} indexOf(v: T, start?: Int, end?: Int): Int\n        requires release List<T>::s_rangeInBounds(this, start, end);\n    {\n        let s, e = start ?| 0, end ?| List<T>::s_size(this);\n\n        let idx = List<T>::s_indexof_keytype(this, s, e, v);\n        check idx != e;\n        return idx;\n    }\n\n    method {when T KeyType} tryIndexOf(v: T, start?: Int, end?: Int): Int?\n        requires release List<T>::s_rangeInBounds(this, start, end);\n    {\n        let s, e = start ?| 0, end ?| List<T>::s_size(this);\n\n        let idx = List<T>::s_indexof_keytype(this, s, e, v);\n        return idx != e ? idx : none;\n    }\n\n    method {when T KeyType} lastIndexOf(v: T, start?: Int, end?: Int): Int\n        requires release List<T>::s_rangeInBounds(this, start, end);\n    {\n        let s, e = (start ?| 0) - 1, (end ?| List<T>::s_size(this)) - 1;\n\n        let idx = List<T>::s_indexoflast_keytype(this, s, e, v);\n        check idx != s;\n        return idx;\n    }\n\n    method {when T KeyType} tryLastIndexOf(v: T, start?: Int, end?: Int): Int?\n        requires release List<T>::s_rangeInBounds(this, start, end);\n    {\n        let s, e = (start ?| 0) - 1, (end ?| List<T>::s_size(this)) - 1;\n\n        let idx = List<T>::s_indexoflast_keytype(this, s, e, v);\n        return idx != s ? idx : none;\n    }\n\n    recursive? method filter(p: recursive? fn(_: T) -> Bool): List<T> {\n        return List<T>::s_filter[recursive?](this, p);\n    }\n\n    recursive? method filterNot(p: recursive? fn(_: T) -> Bool): List<T> {\n        return List<T>::s_filternot[recursive?](this, p);\n    }\n\n    method ofType<U>(): List<U> {\n        return List<T>::s_oftype<U>(this);\n    }\n\n    method cast<U>(): List<U> {\n        return List<T>::s_cast<U>(this);\n    }\n\n    method slice(start?: Int, end?: Int): List<T> \n        requires release List<T>::s_rangeInBounds(this, start, end);\n    {\n        let s, e = start ?| 0, end ?| List<T>::s_size(this);\n\n        if(s == e) {\n            return List<T>@{};\n        }\n        else {\n            return List<T>::s_slice(this, s, e);\n        }\n    }\n\n    method removeFirst(k: Int): List<T> \n        requires release List<T>::s_rangeInBounds(this, k, List<T>::s_size(this));\n    {\n        return List<T>::s_slice(this, k, List<T>::s_size(this));\n    }\n\n    method removeLast(k: Int): List<T> \n        requires release List<T>::s_rangeInBounds(this, k, List<T>::s_size(this));\n    {\n        return List<T>::s_slice(this, 0, List<T>::s_size(this) - k);\n    }\n\n    recursive? method takeWhile(p: recursive? fn(_: T) -> Bool): List<T> {\n        return List<T>::s_takewhile[recursive?](this, p);\n    }\n\n    recursive? method discardWhile(p: recursive? fn(_: T) -> Bool): List<T> {\n        return List<T>::s_discardwhile[recursive?](this, p);\n    }\n\n    recursive? method takeUntil(p: recursive? fn(_: T) -> Bool): List<T> {\n        return List<T>::s_takeuntil[recursive?](this, p);\n    }\n\n    recursive? method discardUntil(p: recursive? fn(_: T) -> Bool): List<T> {\n        return List<T>::s_discarduntil[recursive?](this, p);\n    }\n\n    method {when T KeyType} unique(): List<T> {\n        return List<T>::s_unique(this);\n    }\n\n    method reverse(): List<T> {\n        return List<T>::s_reverse(this);\n    }\n\n    recursive? method map<U>(f: recursive? fn(_: T) -> U): List<U> {\n        return List<T>::s_map<U>[recursive?](this, f);\n    }\n\n    recursive? method mapIndex<U>(f: recursive? fn(_: T, _: Int) -> U): List<U> {\n        return List<T>::s_mapindex<U>[recursive?](this, f);\n    }\n\n    method {when T KeyType} projectWithMap<U>(m: Map<T, U>): List<U> {\n        return List<T>::s_projectWMap<U>(this, m); \n    }\n\n    method {when T KeyType} tryProjectWithMap<U>(m: Map<T, U>): List<U?> {\n        return List<T>::s_tryProjectWMap<U>(this, m);\n    }\n\n    method {when T KeyType} defaultProjectWithMap<U>(default: U, m: Map<T, U>): List<U> {\n        return List<T>::s_defaultProjectWMap<U>(this, m, default);\n    }\n\n    method zipIndex(): List<[Int, T]> {\n        return List<T>::s_zipindex(this);\n    }\n\n    recursive? method join<U>(ol: List<U>, p: recursive? fn(_: T, _: U) -> Bool): List<[T, U]> {\n        return List<T>::s_join<U>[recursive?](this, ol, p);\n    }\n\n    recursive? method joinGroup<U>(ol: List<U>, p: recursive? fn(_: T, _: U) -> Bool): List<[T, List<U>]> {\n        return List<T>::s_joingroup<U>[recursive?](this, ol, p);\n    }\n\n    method append(l: List<T>): List<T> {\n        return List<T>::s_append(this, l);\n    }\n\n    method prepend(l: List<T>): List<T> {\n        return List<T>::s_append(l, this);\n    }\n\n    recursive? method partition<K where KeyType>(pf: recursive? fn(_: T) -> K): Map<K, List<T>> {\n        return List<T>::s_partition<K>[recursive?](this, pf);\n    }\n\n    recursive? method sort(cmp: recursive? fn(_: T, _: T) -> Bool): List<T> {\n        return List<T>::s_sort[recursive?](this, cmp);\n    }\n\n    method toIndexMap(): Map<Int, T> {\n        return List<T>::s_toIndexMap(this);\n    }\n\n    recursive? method transformToIndexMap<V>(vf: recursive? fn(_: T) -> V): Map<Int, V> {\n        return List<T>::s_transformIndexMap<V>[recursive?](this, vf);\n    }\n\n    recursive? method transformToMap<K where KeyType, V>(kf: recursive? fn(_: T) -> K, vf: recursive? fn(_: T) -> V): Map<K, V> {\n        return List<T>::s_transformMap<K, V>[recursive?](this, kf, vf);\n    }\n}\n\nconcept ListOf {\n    hidden static s_zip<T, U>(l1: List<T>, l2: List<U>): List<[T, U]> # list_zip\n    hidden static s_unzip<T, U>(l: List<[T, U]>): List<T>, List<U> # list_unzip\n    hidden static s_range(start: Int, end: Int): List<Int> # list_range\n\n    static zip<T, U>(l1: List<T>, l2: List<U>): List<[T, U]>\n        requires release List<T>::s_size(l1) == List<U>::s_size(l2);\n    {\n        return ListOf::s_zip<T, U>(l1, l2);\n    }\n\n    static unzip<T, U>(l: List<[T, U]>): List<T>, List<U> {\n        return ListOf::s_unzip<T, U>(l);\n    }\n\n    static range(start: Int, end: Int): List<Int>\n        requires release start <= end;\n    {\n        return ListOf::s_range(start, end);\n    }\n}\n"
+        },
+        {
+            "relativePath": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/map.bsq",
+            "contents": "//-------------------------------------------------------------------------------------------------------\n// Copyright (C) Microsoft. All rights reserved.\n// Licensed under the MIT license. See LICENSE.txt file in the project root for full license information.\n//-------------------------------------------------------------------------------------------------------\n\n//The core namespace implements the primitive concepts used in the bosque core language\nnamespace NSCore;\n\nentity Map<K where KeyType, V> provides Object, Expandoable<MapEntry<K, V>>, PODType when K PODType && V PODType, APIType when K APIType && V APIType {\n    hidden static s_size(m: Map<K, V>): Int # map_size\n    hidden static s_has_key(m: Map<K, V>, key: K): Bool # map_has_key\n    hidden static s_at_val(m: Map<K, V>, key: K): V # map_at_val\n\n    hidden static s_key_list(m: Map<K, V>): List<K> # map_key_list\n    hidden static s_key_set(m: Map<K, V>): Set<K> # map_key_set\n    hidden static s_values(m: Map<K, V>): List<V> # map_values\n    hidden static s_entries(m: Map<K, V>): List<MapEntry<K, V>> # map_entries\n\n    hidden static s_has_all(m: Map<K, V>, kl: List<K>): Bool # map_has_all\n    hidden static s_domainincludes(m: Map<K, V>, s: Set<K>): Bool # map_domainincludes\n\n    recursive? hidden static s_submap(m: Map<K, V>, p: recursive? fn(_: K, _: V) -> Bool): Map<K, V> # map_submap\n    hidden static s_oftype<T where KeyType, U>(m: Map<K, V>): Map<T, U> # map_oftype\n    hidden static s_cast<T where KeyType, U>(m: Map<K, V>): Map<T, U> # map_cast\n\n    hidden static s_projectall(m: Map<K, V>, dl: List<K>): Map<K, V> # map_projectall\n    hidden static s_excludeall(m: Map<K, V>, ds: List<K>): Map<K, V> # map_excludeall\n\n    hidden static s_project(m: Map<K, V>, ds: Set<K>): Map<K, V> # map_project\n    hidden static s_exclude(m: Map<K, V>, ds: Set<K>): Map<K, V> # map_exclude\n\n    recursive? hidden static s_remap<U>(m: Map<K, V>, f: recursive? fn(_: K, _: V) -> U): Map<K, U> # map_remap\n\n    hidden static s_composewith<U>(m: Map<K, V>, cm: Map<V, U>): Map<K, U> # map_composewith\n    hidden static s_trycomposewith<U>(m: Map<K, V>, cm: Map<V, U>): Map<K, U?> # map_trycomposewith\n    hidden static s_defaultcomposewith<U>(m: Map<K, V>, cm: Map<V, U>, default: U): Map<K, U> # map_defaultcomposewith\n\n    hidden static {when V KeyType} s_invertinj(m: Map<K, V>): Map<V, K> # map_invertinj\n    hidden static {when V KeyType} s_invertrel(m: Map<K, V>): Map<V, List<K>> # map_invertrel\n\n    hidden static s_union(m: Map<K, V>, om: Map<K, V>): Map<K, V> # map_union\n    hidden static s_unionall(dl: List<Map<K, V>>): Map<K, V> # map_unionall\n\n    hidden static s_merge(m: Map<K, V>, om: Map<K, V>): Map<K, V> # map_merge\n    hidden static s_mergeall(dl: List<Map<K, V>>): Map<K, V> # map_mergeall\n\n    method size(): Int {\n        return Map<K, V>::s_size(this);\n    }\n\n    method empty(): Bool {\n        return Map<K, V>::s_size(this) == 0;\n    }\n\n    method keys(): List<K> {\n        return Map<K, V>::s_key_list(this);\n    }\n\n    method keySet(): Set<K> {\n        return Map<K, V>::s_key_set(this);\n    }\n\n    method values(): List<V> {\n        return Map<K, V>::s_values(this);\n    }\n\n    method entries(): List<MapEntry<K, V>> {\n        return Map<K, V>::s_entries(this);\n    }\n\n    method toDynamicMap(): DynamicMap<K, V> {\n        abort;\n    }\n\n    method has(key: K): Bool {\n        return Map<K, V>::s_has_key(this, key);\n    }\n\n    method hasAll(...kl: List<K>): Bool {\n        return Map<K, V>::s_has_all(this, kl);\n    }\n\n    method domainSubsetOf(s: Set<K>): Bool {\n        if(Set<K>::s_size(s) > Map<K, V>::s_size(this)) {\n            return false;\n        }\n        else {\n            return Map<K, V>::s_domainincludes(this, s);\n        }\n    }\n\n    method get(key: K): V \n        requires release Map<K, V>::s_has_key(this, key);\n    {\n        return Map<K, V>::s_at_val(this, key);\n    }\n\n    method tryGet(k: K): V? {\n        return Map<K, V>::s_has_key(this, k) ? Map<K, V>::s_at_val(this, k) : none;\n    }\n\n    method defaultGet(k: K, default: V): V {\n        return Map<K, V>::s_has_key(this, k) ? Map<K, V>::s_at_val(this, k) : default;\n    }\n\n    recursive? method submap(p: recursive? fn(_: K, _: V) -> Bool): Map<K, V> {\n        return Map<K, V>::s_submap[recursive?](this, p);\n    }\n\n    method ofType<T where KeyType, U>(): Map<T, U> {\n        return Map<K, V>::s_oftype<T, U>(this);\n    }\n\n    method cast<T where KeyType, U>(): Map<T, U> {\n        return Map<K, V>::s_cast<T, U>(this);\n    }\n\n    method projectAll(...kl: List<K>): Map<K, V> {\n        return Map<K, V>::s_projectall(this, kl);\n    }\n\n    method excludeAll(...kl: List<K>): Map<K, V> {\n        return Map<K, V>::s_excludeall(this, kl);\n    }\n\n    method projectSet(ds: Set<K>): Map<K, V> {\n        return Map<K, V>::s_project(this, ds);\n    }\n\n    method excludeSet(ds: Set<K>): Map<K, V> {\n        return Map<K, V>::s_exclude(this, ds);\n    }\n\n    recursive? method remap<U>(f: recursive? fn(_: K, _: V) -> U): Map<K, U> {\n        return Map<K, V>::s_remap<U>[recursive?](this, f);\n    }\n\n    method {when V KeyType} composeWith<U>(m: Map<V, U>): Map<K, U> {\n        return Map<K, V>::s_composewith<U>(this, m);\n    }\n\n    method {when V KeyType} tryComposeWith<U>(m: Map<V, U>): Map<K, U?> {\n        return Map<K, V>::s_trycomposewith<U>(this, m);\n    }\n\n    method {when V KeyType} defaultComposeWith<U>(m: Map<V, U>, default: U): Map<K, U> {\n        return Map<K, V>::s_defaultcomposewith<U>(this, m, default);\n    }\n\n    method {when V KeyType} invertInjective(): Map<V, K> {\n        return Map<K, V>::s_invertinj(this);\n    }\n\n    method {when V KeyType} invertRelational(): Map<V, List<K>> {\n        return Map<K, V>::s_invertrel(this);\n    }\n\n    method unionWith(m: Map<K, V>): Map<K, V> {\n        return Map<K, V>::s_union(this, m);\n    }\n\n    static unionOf(...ml: List<Map<K, V>>): Map<K, V> {\n        if(List<Map<K, V>>::s_size(ml) == 0) {\n            return Map<K, V>@{};\n        }\n        elif(List<Map<K, V>>::s_size(ml) == 1) {\n            return List<Map<K, V>>::s_unsafe_get(ml, 0);\n        }\n        else {\n            return Map<K, V>::s_unionall(ml);\n        }\n    }\n\n    method mergeWith(m: Map<K, V>): Map<K, V> {\n        return Map<K, V>::s_merge(this, m);\n    }\n\n    static mergeOf(...ml: List<Map<K, V>>): Map<K, V> {\n        if(List<Map<K, V>>::s_size(ml) == 0) {\n            return Map<K, V>@{};\n        }\n        elif(List<Map<K, V>>::s_size(ml) == 1) {\n            return List<Map<K, V>>::s_unsafe_get(ml, 0);\n        }\n        else {\n            return Map<K, V>::s_mergeall(ml);\n        }\n    }\n}\n\nentity DynamicMap<K where KeyType, V> provides Object, Expandoable<MapEntry<K, V>> {\n    method size(): Int {\n        abort;\n    }\n\n    method empty(): Bool  {\n        abort;\n    }\n\n    method keys(): List<K>  {\n        abort;\n    }\n\n    method keySet(): Set<K>  {\n        abort;\n    }\n\n    method values(): List<V>  {\n        abort;\n    }\n\n    method entries(): List<MapEntry<K, V>>  {\n        abort;\n    }\n\n    method toMap(): DynamicMap<K, V> {\n        abort;\n    }\n\n    method has(key: K): Bool {\n        abort;\n    }\n\n    method hasAll(...ks: List<K>): Bool {\n        abort;\n    }\n\n    method domainSubsetOf(s: Set<K>): Bool {\n        abort;\n    }\n\n    method get(key: K): V {\n        abort;\n    }\n\n    method tryGet(k: K): V? {\n        abort;\n    }\n\n    method add(k: K, v: V): DynamicMap<K, V> {\n        abort;\n    }\n\n    method addAll(...el: List<MapEntry<K, V>>): DynamicMap<K, V> {\n        abort;\n    }\n\n    method insert(k: K, v: V): DynamicMap<K, V> {\n        abort;\n    }\n\n    method insertAll(...el: List<MapEntry<K, V>>): DynamicMap<K, V> {\n        abort;\n    }\n\n    method update(k: K, v: V): DynamicMap<K, V> {\n        abort;\n    }\n\n    method updateAll(...el: List<MapEntry<K, V>>): DynamicMap<K, V> {\n        abort;\n    }\n\n    method remove(k: K): DynamicMap<K, V> {\n        abort;\n    }\n\n    method removeAll(...kl: List<K>): DynamicMap<K, V> {\n        abort;\n    }\n\n    recursive? method submap(p: recursive? fn(_: K, _: V) -> Bool): DynamicMap<K, V> {\n        abort;\n    }\n\n    method ofType<T where KeyType, U>(): Map<T, U> {\n        abort;\n    }\n\n    method cast<T where KeyType, U>(): Map<T, U> {\n        abort;\n    }\n\n    method projectAll(...kl: List<K>): DynamicMap<K, V> {\n        abort;\n    }\n\n    method excludeAll(...kl: List<K>): DynamicMap<K, V> {\n        abort;\n    }\n\n    method projectSet(ds: Set<K>): DynamicMap<K, V> {\n        abort;\n    }\n\n    method excludeSet(ds: Set<K>): Map<K, V> {\n        abort;\n    }\n\n    recursive? method remap<U>(f: recursive? fn(_: K, _: V) -> U): DynamicMap<K, U> {\n        abort;\n    }\n\n    method unionWith(m: Map<K, V>): DynamicMap<K, V> {\n        abort;\n    }\n\n    static union(...ml: List<Map<K, V>>): DynamicMap<K, V> {\n        abort;\n    }\n\n    method mergeWith(m: Map<K, V>): DynamicMap<K, V> {\n        abort;\n    }\n\n    static merge(...ml: List<Map<K, V>>): DynamicMap<K, V> {\n        abort;\n    }\n}\n\n\n"
+        },
+        {
+            "relativePath": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/queue.bsq",
+            "contents": "//-------------------------------------------------------------------------------------------------------\n// Copyright (C) Microsoft. All rights reserved.\n// Licensed under the MIT license. See LICENSE.txt file in the project root for full license information.\n//-------------------------------------------------------------------------------------------------------\n\n//The core namespace implements the primitive concepts used in the bosque core language\nnamespace NSCore;\n\nentity Queue<T> provides Object, Expandoable<T> {\n    static s_size(q: Queue<T>): Int # queue_size\n\n    method size(): Int {\n        abort;\n    }\n\n    method empty(): Bool {\n        return Queue<T>::s_size(this) == 0;\n    }\n\n    method toList(): List<T> {\n        abort;\n    }\n\n    method dequeue(): T, Queue<T>\n        requires release Queue<T>::s_size(this) != 0;\n    {\n        abort;\n    }\n\n    static idequeue(ref q: Queue<T>): T \n        requires release Queue<T>::s_size(q) != 0;\n    {\n        abort;\n    }\n\n    method peek(): T\n        requires release Queue<T>::s_size(this) != 0;\n    {\n        abort;\n    }\n\n    method tryPeek(): T? {\n        abort;\n    }\n\n    method lookahead(k: Int): T\n        requires release k < Queue<T>::s_size(this);\n    {\n        abort;\n    }\n\n    method tryLookahead(k: Int): T? {\n        abort;\n    }\n\n    method rest(): Queue<T>\n        requires release Queue<T>::s_size(this) != 0;\n    {\n        abort;\n    }\n\n    static irest(ref q: Queue<T>)\n        requires release Queue<T>::s_size(q) != 0;\n    {\n       abort;\n    }\n\n    method enqueue(v: T): Queue<T> {\n        abort;\n    }\n\n    static ienqueue(ref q: Queue<T>, v: T) {\n       abort;\n    }\n}\n"
+        },
+        {
+            "relativePath": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/set.bsq",
+            "contents": "//-------------------------------------------------------------------------------------------------------\n// Copyright (C) Microsoft. All rights reserved.\n// Licensed under the MIT license. See LICENSE.txt file in the project root for full license information.\n//-------------------------------------------------------------------------------------------------------\n\n//The core namespace implements the primitive concepts used in the bosque core language\nnamespace NSCore;\n\nentity Set<T where KeyType> provides Object, Expandoable<T>, PODType when T PODType, APIType when T APIType {\n    hidden static s_size(s: Set<T>): Int # set_size\n\n    hidden static s_entry_list(s: Set<T>): List<T> # set_entry_list\n\n    hidden static s_has_key(s: Set<T>, v: T): Bool # set_has_key\n    hidden static s_hasall(s: Set<T>, l: List<T>): Bool # set_hasall\n    \n    hidden static s_subsetof(s: Set<T>, os: Set<T>): Bool # set_subsetof\n    hidden static s_equal(s: Set<T>, os: Set<T>): Bool # set_equal\n    hidden static s_disjoint(s: Set<T>, os: Set<T>): Bool # set_disjoint\n\n    recursive? hidden static s_subset(s: Set<T>, p: recursive? fn(_: T) -> Bool): Set<T> # set_subset\n    hidden static s_oftype<U where KeyType>(s: Set<T>): Set<U> # set_oftype\n    hidden static s_cast<U where KeyType>(s: Set<T>): Set<U> # set_cast\n\n    hidden static s_union(s: Set<T>, os: Set<T>): Set<T> # set_union\n    hidden static s_intersect(s: Set<T>, os: Set<T>): Set<T> # set_intersect\n    hidden static s_difference(s: Set<T>, os: Set<T>): Set<T> # set_difference\n    hidden static s_symmetricdifference(s: Set<T>, os: Set<T>): Set<T> # set_symmetricdifference\n\n    hidden static s_unionall(sl: List<Set<T>>): Set<T> # set_unionall\n    hidden static s_intersectall(sl: List<Set<T>>): Set<T> # set_intersectall\n\n    method size(): Int {\n        return Set<T>::s_size(this);\n    }\n\n    method empty(): Bool {\n        return Set<T>::s_size(this) == 0;\n    }\n\n    method entries(): List<T> {\n        return Set<T>::s_entry_list(this);\n    }\n\n    method has(v: T): Bool {\n        return Set<T>::s_has_key(this, v);\n    }\n\n    method hasAll(...v: List<T>): Bool {\n        return Set<T>::s_hasall(this, v);\n    }\n\n    method toDynamicSet<T>(): DynamicSet<T> {\n        abort;\n    }\n\n    method subsetOf(s: Set<T>): Bool {\n        return Set<T>::s_subsetof(this, s);\n    }\n\n    method equal(s: Set<T>): Bool {\n        return Set<T>::s_equal(this, s);\n    }\n\n    method disjoint(s: Set<T>): Bool {\n        return Set<T>::s_disjoint(this, s);\n    }\n\n    recursive? method subset(p: recursive? fn(_: T) -> Bool): Set<T> {\n        return Set<T>::s_subset[recursive?](this, p);\n    }\n\n    method ofType<U where KeyType>(): Set<U> {\n        return Set<T>::s_oftype<U>(this);\n    }\n\n    method cast<U where KeyType>(): Set<U> {\n        return Set<T>::s_cast<U>(this);\n    }\n\n    method union(s: Set<T>): Set<T> {\n        return Set<T>::s_union(this, s);\n    }\n\n    method intersect(s: Set<T>): Set<T> {\n        return Set<T>::s_intersect(this, s);\n    }\n\n    method difference(s: Set<T>): Set<T> {\n        return Set<T>::s_difference(this, s);\n    }\n\n    method symmetricDifference(s: Set<T>): Set<T> {\n       return Set<T>::s_symmetricdifference(this, s);\n    }\n\n    static unionOf(...sl: List<Set<T>>): Set<T> {\n        if(List<T>::s_size(sl) == 0) {\n            return Set<T>@{};\n        }\n        elif(List<T>::s_size(sl) == 1) {\n            return List<T>::s_unsafe_get(sl, 0);\n        }\n        else {\n            return Set<T>::s_unionall(sl);\n        }\n    }\n\n    static intersectionOf(...sl: List<Set<T>>): Set<T> {\n        if(List<T>::s_size(sl) == 0) {\n            return Set<T>@{};\n        }\n        elif(List<T>::s_size(sl) == 1) {\n            return List<T>::s_unsafe_get(sl, 0);\n        }\n        else {\n            return Set<T>::s_intersectall(sl);\n        }\n    }\n}\n\nentity DynamicSet<T where KeyType> provides Object, Expandoable<T> {\n    method size(): Int {\n        abort;\n    }\n\n    method empty(): Bool {\n        abort;\n    }\n\n    method entries(): List<T> {\n        abort;\n    }\n\n    method has(v: T): Bool  {\n        abort;\n    }\n\n    method hasAll(...v: List<T>): Bool  {\n        abort;\n    }\n\n    method toSet<T>(): Set<T> {\n        abort;\n    }\n\n    method add(v: T): DynamicSet<T>  {\n        abort;\n    }\n\n    method addAll(...v: List<T>): DynamicSet<T>  {\n        abort;\n    }\n\n    method insert(v: T): DynamicSet<T>  {\n        abort;\n    }\n\n    method insertAll(...v: List<T>): DynamicSet<T>  {\n        abort;\n    }\n\n    method remove(v: T): DynamicSet<T>  {\n        abort;\n    }\n\n    method removeAll(...v: List<T>): DynamicSet<T>  {\n        abort;\n    }\n\n    method subsetOf(s: DynamicSet<T>): Bool  {\n        abort;\n    }\n\n    method equal(s: DynamicSet<T>): Bool  {\n        abort;\n    }\n\n    method disjoint(s: DynamicSet<T>): Bool  {\n        abort;\n    }\n\n    recursive? method subset(p: recursive? fn(_: T) -> Bool): Set<T> {\n        abort;\n    }\n\n    method ofType<U where KeyType>(): Set<U> {\n        abort;\n    }\n\n    method cast<U where KeyType>(): Set<U> {\n        abort;\n    }\n\n    method union(s: DynamicSet<T>): DynamicSet<T>  {\n        abort;\n    }\n\n    method intersect(s: DynamicSet<T>): DynamicSet<T>  {\n        abort;\n    }\n\n    method difference(s: DynamicSet<T>): DynamicSet<T>  {\n        abort;\n    }\n\n    method symmetricDifference(s: DynamicSet<T>): DynamicSet<T>  {\n        abort;\n    }\n\n    static unionOf(...sl: List<DynamicSet<T>>): DynamicSet<T> {\n        abort;\n    }\n\n    static intersectionOf(...sl: List<DynamicSet<T>>): DynamicSet<T> {\n        abort;\n    }\n}\n"
+        },
+        {
+            "relativePath": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/stack.bsq",
+            "contents": "//-------------------------------------------------------------------------------------------------------\n// Copyright (C) Microsoft. All rights reserved.\n// Licensed under the MIT license. See LICENSE.txt file in the project root for full license information.\n//-------------------------------------------------------------------------------------------------------\n\n//The core namespace implements the primitive concepts used in the bosque core language\nnamespace NSCore;\n\nentity Stack<T> provides Object, Expandoable<T> {\n    static s_size(s: Stack<T>): Int # stack_size\n\n    method size(): Int {\n       abort;\n    }\n\n    method empty(): Bool {\n        abort;\n    }\n\n    method toList(): List<T> {\n        abort;\n    }\n\n    method pop(): T, Stack<T>\n        requires release Stack<T>::s_size(this) != 0;\n    {\n        abort;\n    }\n\n    static ipop(ref s: Stack<T>): T \n        requires release Stack<T>::s_size(s) != 0;\n    {\n        abort;\n    }\n\n    method peek(): T\n        requires release Stack<T>::s_size(this) != 0;\n    {\n        abort;\n    }\n\n    method tryPeek(): T? {\n        abort;\n    }\n\n    method lookahead(k: Int): T\n        requires release k < Stack<T>::s_size(this);\n    {\n        abort;\n    }\n\n    method tryLookahead(k: Int): T? {\n        abort;\n    }\n\n    method rest(): Stack<T> \n        requires release Stack<T>::s_size(this) != 0;\n    {\n        abort;\n    }\n\n    static irest(ref s: Stack<T>)\n        requires release Stack<T>::s_size(s) != 0;\n    {\n        abort;\n    }\n\n    method push(v: T): Stack<T> {\n        abort;\n    }\n\n    static ipush(ref s: Stack<T>, v: T) {\n        abort;\n    }\n}\n"
+        },
+        {
+            "relativePath": "max.bsq",
+            "contents": "namespace NSMain;\n\nentrypoint function main(x: Int, y: Int): Int {\n    return (x > y) ? x : y;\n}\n\n"
+        }
+    ],
+    "srcHash": "aa63b96805b1e7ed5318606b1ea5de462692392bb60e03e45eade7d192889c8004d6c4bec2d261b333c982e29e898b3b8438b20b8674cb2f163f282be71b7879",
+    "literalRegexs": [],
+    "validatorRegexs": [],
+    "constantDecls": [],
+    "fieldDecls": [],
+    "entryPoints": [
+        "NSMain::main"
+    ],
+    "invokeDecls": [
+        [
+            "NSMain::main",
+            {
+                "name": "main",
+                "iname": "NSMain::main",
+                "key": "NSMain::main",
+                "sinfo": {
+                    "line": 3,
+                    "column": 0,
+                    "pos": 19,
+                    "span": 10
+                },
+                "file": "max.bsq",
+                "attributes": [
+                    "entrypoint"
+                ],
+                "recursive": false,
+                "pragmas": [],
+                "params": [
+                    {
+                        "name": "x",
+                        "type": "NSCore::Int"
+                    },
+                    {
+                        "name": "y",
+                        "type": "NSCore::Int"
+                    }
+                ],
+                "resultType": "NSCore::Int",
+                "body": {
+                    "file": "max.bsq",
+                    "sinfo": {
+                        "line": 3,
+                        "column": 0,
+                        "pos": 65,
+                        "span": 1
+                    },
+                    "blocks": [
+                        {
+                            "label": "entry",
+                            "ops": [
+                                {
+                                    "tag": "MIRBinCmp",
+                                    "sinfo": {
+                                        "line": 4,
+                                        "column": 0,
+                                        "pos": 79,
+                                        "span": 1
+                                    },
+                                    "trgt": {
+                                        "tag": "temp",
+                                        "regID": 1,
+                                        "nameID": "#tmp_1"
+                                    },
+                                    "lhsInferType": "NSCore::Int",
+                                    "lhs": {
+                                        "tag": "var",
+                                        "lname": "x",
+                                        "nameID": "x"
+                                    },
+                                    "op": ">",
+                                    "rhsInferType": "NSCore::Int",
+                                    "rhs": {
+                                        "tag": "var",
+                                        "lname": "y",
+                                        "nameID": "y"
+                                    }
+                                },
+                                {
+                                    "tag": "MIRJumpCond",
+                                    "sinfo": {
+                                        "line": 4,
+                                        "column": 0,
+                                        "pos": 78,
+                                        "span": 1
+                                    },
+                                    "arg": {
+                                        "tag": "temp",
+                                        "regID": 1,
+                                        "nameID": "#tmp_1"
+                                    },
+                                    "trueblock": "Lselect_true_4",
+                                    "falseblock": "Lselect_false_5"
+                                }
+                            ]
+                        },
+                        {
+                            "label": "Lselect_false_5",
+                            "ops": [
+                                {
+                                    "tag": "MIRAccessArgVariable",
+                                    "sinfo": {
+                                        "line": 4,
+                                        "column": 0,
+                                        "pos": 92,
+                                        "span": 1
+                                    },
+                                    "trgt": {
+                                        "tag": "temp",
+                                        "regID": 0,
+                                        "nameID": "#tmp_0"
+                                    },
+                                    "name": {
+                                        "tag": "var",
+                                        "lname": "y",
+                                        "nameID": "y"
+                                    }
+                                },
+                                {
+                                    "tag": "MIRJump",
+                                    "sinfo": {
+                                        "line": 4,
+                                        "column": 0,
+                                        "pos": 78,
+                                        "span": 1
+                                    },
+                                    "trgtblock": "Lselect_done_3"
+                                }
+                            ]
+                        },
+                        {
+                            "label": "Lselect_true_4",
+                            "ops": [
+                                {
+                                    "tag": "MIRAccessArgVariable",
+                                    "sinfo": {
+                                        "line": 4,
+                                        "column": 0,
+                                        "pos": 88,
+                                        "span": 1
+                                    },
+                                    "trgt": {
+                                        "tag": "temp",
+                                        "regID": 0,
+                                        "nameID": "#tmp_0$1"
+                                    },
+                                    "name": {
+                                        "tag": "var",
+                                        "lname": "x",
+                                        "nameID": "x"
+                                    }
+                                },
+                                {
+                                    "tag": "MIRJump",
+                                    "sinfo": {
+                                        "line": 4,
+                                        "column": 0,
+                                        "pos": 78,
+                                        "span": 1
+                                    },
+                                    "trgtblock": "Lselect_done_3"
+                                }
+                            ]
+                        },
+                        {
+                            "label": "Lselect_done_3",
+                            "ops": [
+                                {
+                                    "tag": "MIRPhi",
+                                    "sinfo": {
+                                        "line": 3,
+                                        "column": 0,
+                                        "pos": 65,
+                                        "span": 1
+                                    },
+                                    "src": [
+                                        [
+                                            "Lselect_true_4",
+                                            {
+                                                "tag": "temp",
+                                                "regID": 0,
+                                                "nameID": "#tmp_0$1"
+                                            }
+                                        ],
+                                        [
+                                            "Lselect_false_5",
+                                            {
+                                                "tag": "temp",
+                                                "regID": 0,
+                                                "nameID": "#tmp_0"
+                                            }
+                                        ]
+                                    ],
+                                    "trgt": {
+                                        "tag": "temp",
+                                        "regID": 0,
+                                        "nameID": "#tmp_0$2"
+                                    }
+                                },
+                                {
+                                    "tag": "MIRReturnAssign",
+                                    "sinfo": {
+                                        "line": 4,
+                                        "column": 0,
+                                        "pos": 71,
+                                        "span": 6
+                                    },
+                                    "src": {
+                                        "tag": "temp",
+                                        "regID": 0,
+                                        "nameID": "#tmp_0$2"
+                                    },
+                                    "name": {
+                                        "tag": "var",
+                                        "lname": "$__ir_ret__",
+                                        "nameID": "$__ir_ret__"
+                                    }
+                                },
+                                {
+                                    "tag": "MIRJump",
+                                    "sinfo": {
+                                        "line": 4,
+                                        "column": 0,
+                                        "pos": 71,
+                                        "span": 6
+                                    },
+                                    "trgtblock": "returnassign"
+                                }
+                            ]
+                        },
+                        {
+                            "label": "returnassign",
+                            "ops": [
+                                {
+                                    "tag": "MIRVarStore",
+                                    "sinfo": {
+                                        "line": 3,
+                                        "column": 0,
+                                        "pos": 65,
+                                        "span": 1
+                                    },
+                                    "src": {
+                                        "tag": "var",
+                                        "lname": "$__ir_ret__",
+                                        "nameID": "$__ir_ret__"
+                                    },
+                                    "name": {
+                                        "tag": "var",
+                                        "lname": "$$return",
+                                        "nameID": "$$return"
+                                    }
+                                },
+                                {
+                                    "tag": "MIRJump",
+                                    "sinfo": {
+                                        "line": 3,
+                                        "column": 0,
+                                        "pos": 65,
+                                        "span": 1
+                                    },
+                                    "trgtblock": "exit"
+                                }
+                            ]
+                        },
+                        {
+                            "label": "exit",
+                            "ops": []
+                        }
+                    ],
+                    "vtypes": [
+                        [
+                            "#tmp_0",
+                            "NSCore::Int"
+                        ],
+                        [
+                            "#tmp_0$1",
+                            "NSCore::Int"
+                        ],
+                        [
+                            "#tmp_0$2",
+                            "NSCore::Int"
+                        ],
+                        [
+                            "#tmp_1",
+                            "NSCore::Bool"
+                        ],
+                        [
+                            "$__ir_ret__",
+                            "NSCore::Int"
+                        ],
+                        [
+                            "$$return",
+                            "NSCore::Int"
+                        ],
+                        [
+                            "x",
+                            "NSCore::Int"
+                        ],
+                        [
+                            "y",
+                            "NSCore::Int"
+                        ]
+                    ]
+                }
+            }
+        ]
+    ],
+    "primitiveInvokeDecls": [],
+    "conceptDecls": [
+        [
+            "NSCore::Object",
+            {
+                "isentity": false,
+                "ooname": "NSCore::Object",
+                "tkey": "NSCore::Object",
+                "sinfo": {
+                    "line": 507,
+                    "column": 0,
+                    "pos": 16752,
+                    "span": 7
+                },
+                "file": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/core.bsq",
+                "attributes": [],
+                "pragmas": [],
+                "ns": "NSCore",
+                "name": "Object",
+                "terms": [],
+                "provides": [
+                    "NSCore::Some"
+                ],
+                "invariants": [],
+                "fields": [],
+                "vcallMap": []
+            }
+        ],
+        [
+            "NSCore::Record",
+            {
+                "isentity": false,
+                "ooname": "NSCore::Record",
+                "tkey": "NSCore::Record",
+                "sinfo": {
+                    "line": 440,
+                    "column": 0,
+                    "pos": 14838,
+                    "span": 7
+                },
+                "file": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/core.bsq",
+                "attributes": [],
+                "pragmas": [],
+                "ns": "NSCore",
+                "name": "Record",
+                "terms": [],
+                "provides": [
+                    "NSCore::Some"
+                ],
+                "invariants": [],
+                "fields": [],
+                "vcallMap": []
+            }
+        ],
+        [
+            "NSCore::Tuple",
+            {
+                "isentity": false,
+                "ooname": "NSCore::Tuple",
+                "tkey": "NSCore::Tuple",
+                "sinfo": {
+                    "line": 436,
+                    "column": 0,
+                    "pos": 14732,
+                    "span": 7
+                },
+                "file": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/core.bsq",
+                "attributes": [],
+                "pragmas": [],
+                "ns": "NSCore",
+                "name": "Tuple",
+                "terms": [],
+                "provides": [
+                    "NSCore::Some"
+                ],
+                "invariants": [],
+                "fields": [],
+                "vcallMap": []
+            }
+        ],
+        [
+            "NSCore::IdKey",
+            {
+                "isentity": false,
+                "ooname": "NSCore::IdKey",
+                "tkey": "NSCore::IdKey",
+                "sinfo": {
+                    "line": 394,
+                    "column": 0,
+                    "pos": 13363,
+                    "span": 7
+                },
+                "file": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/core.bsq",
+                "attributes": [],
+                "pragmas": [],
+                "ns": "NSCore",
+                "name": "IdKey",
+                "terms": [],
+                "provides": [
+                    "NSCore::KeyType",
+                    "NSCore::Some"
+                ],
+                "invariants": [],
+                "fields": [],
+                "vcallMap": []
+            }
+        ],
+        [
+            "NSCore::Enum",
+            {
+                "isentity": false,
+                "ooname": "NSCore::Enum",
+                "tkey": "NSCore::Enum",
+                "sinfo": {
+                    "line": 390,
+                    "column": 0,
+                    "pos": 13253,
+                    "span": 7
+                },
+                "file": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/core.bsq",
+                "attributes": [],
+                "pragmas": [],
+                "ns": "NSCore",
+                "name": "Enum",
+                "terms": [],
+                "provides": [
+                    "NSCore::KeyType",
+                    "NSCore::Some"
+                ],
+                "invariants": [],
+                "fields": [],
+                "vcallMap": []
+            }
+        ],
+        [
+            "NSCore::Truthy",
+            {
+                "isentity": false,
+                "ooname": "NSCore::Truthy",
+                "tkey": "NSCore::Truthy",
+                "sinfo": {
+                    "line": 68,
+                    "column": 0,
+                    "pos": 3022,
+                    "span": 7
+                },
+                "file": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/core.bsq",
+                "attributes": [
+                    "struct"
+                ],
+                "pragmas": [],
+                "ns": "NSCore",
+                "name": "Truthy",
+                "terms": [],
+                "provides": [
+                    "NSCore::KeyType",
+                    "NSCore::Parsable"
+                ],
+                "invariants": [],
+                "fields": [],
+                "vcallMap": []
+            }
+        ],
+        [
+            "NSCore::APIValue",
+            {
+                "isentity": false,
+                "ooname": "NSCore::APIValue",
+                "tkey": "NSCore::APIValue",
+                "sinfo": {
+                    "line": 57,
+                    "column": 0,
+                    "pos": 2449,
+                    "span": 7
+                },
+                "file": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/core.bsq",
+                "attributes": [],
+                "pragmas": [],
+                "ns": "NSCore",
+                "name": "APIValue",
+                "terms": [],
+                "provides": [
+                    "NSCore::Any"
+                ],
+                "invariants": [],
+                "fields": [],
+                "vcallMap": []
+            }
+        ],
+        [
+            "NSCore::APIType",
+            {
+                "isentity": false,
+                "ooname": "NSCore::APIType",
+                "tkey": "NSCore::APIType",
+                "sinfo": {
+                    "line": 61,
+                    "column": 0,
+                    "pos": 2582,
+                    "span": 7
+                },
+                "file": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/core.bsq",
+                "attributes": [],
+                "pragmas": [],
+                "ns": "NSCore",
+                "name": "APIType",
+                "terms": [],
+                "provides": [
+                    "NSCore::APIValue"
+                ],
+                "invariants": [],
+                "fields": [],
+                "vcallMap": []
+            }
+        ],
+        [
+            "NSCore::PODType",
+            {
+                "isentity": false,
+                "ooname": "NSCore::PODType",
+                "tkey": "NSCore::PODType",
+                "sinfo": {
+                    "line": 50,
+                    "column": 0,
+                    "pos": 1994,
+                    "span": 7
+                },
+                "file": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/core.bsq",
+                "attributes": [],
+                "pragmas": [],
+                "ns": "NSCore",
+                "name": "PODType",
+                "terms": [],
+                "provides": [
+                    "NSCore::APIType"
+                ],
+                "invariants": [],
+                "fields": [],
+                "vcallMap": []
+            }
+        ],
+        [
+            "NSCore::KeyType",
+            {
+                "isentity": false,
+                "ooname": "NSCore::KeyType",
+                "tkey": "NSCore::KeyType",
+                "sinfo": {
+                    "line": 44,
+                    "column": 0,
+                    "pos": 1757,
+                    "span": 7
+                },
+                "file": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/core.bsq",
+                "attributes": [],
+                "pragmas": [],
+                "ns": "NSCore",
+                "name": "KeyType",
+                "terms": [],
+                "provides": [
+                    "NSCore::Any"
+                ],
+                "invariants": [],
+                "fields": [],
+                "vcallMap": []
+            }
+        ],
+        [
+            "NSCore::Validator",
+            {
+                "isentity": false,
+                "ooname": "NSCore::Validator",
+                "tkey": "NSCore::Validator",
+                "sinfo": {
+                    "line": 39,
+                    "column": 0,
+                    "pos": 1577,
+                    "span": 7
+                },
+                "file": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/core.bsq",
+                "attributes": [],
+                "pragmas": [],
+                "ns": "NSCore",
+                "name": "Validator",
+                "terms": [],
+                "provides": [
+                    "NSCore::Any"
+                ],
+                "invariants": [],
+                "fields": [],
+                "vcallMap": []
+            }
+        ],
+        [
+            "NSCore::Parsable",
+            {
+                "isentity": false,
+                "ooname": "NSCore::Parsable",
+                "tkey": "NSCore::Parsable",
+                "sinfo": {
+                    "line": 34,
+                    "column": 0,
+                    "pos": 1397,
+                    "span": 7
+                },
+                "file": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/core.bsq",
+                "attributes": [],
+                "pragmas": [],
+                "ns": "NSCore",
+                "name": "Parsable",
+                "terms": [],
+                "provides": [
+                    "NSCore::Any"
+                ],
+                "invariants": [],
+                "fields": [],
+                "vcallMap": []
+            }
+        ],
+        [
+            "NSCore::Convertable",
+            {
+                "isentity": false,
+                "ooname": "NSCore::Convertable",
+                "tkey": "NSCore::Convertable",
+                "sinfo": {
+                    "line": 30,
+                    "column": 0,
+                    "pos": 1273,
+                    "span": 7
+                },
+                "file": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/core.bsq",
+                "attributes": [],
+                "pragmas": [],
+                "ns": "NSCore",
+                "name": "Convertable",
+                "terms": [],
+                "provides": [
+                    "NSCore::Any"
+                ],
+                "invariants": [],
+                "fields": [],
+                "vcallMap": []
+            }
+        ],
+        [
+            "NSCore::Some",
+            {
+                "isentity": false,
+                "ooname": "NSCore::Some",
+                "tkey": "NSCore::Some",
+                "sinfo": {
+                    "line": 22,
+                    "column": 0,
+                    "pos": 893,
+                    "span": 7
+                },
+                "file": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/core.bsq",
+                "attributes": [],
+                "pragmas": [],
+                "ns": "NSCore",
+                "name": "Some",
+                "terms": [],
+                "provides": [
+                    "NSCore::Any"
+                ],
+                "invariants": [],
+                "fields": [],
+                "vcallMap": []
+            }
+        ],
+        [
+            "NSCore::Any",
+            {
+                "isentity": false,
+                "ooname": "NSCore::Any",
+                "tkey": "NSCore::Any",
+                "sinfo": {
+                    "line": 10,
+                    "column": 0,
+                    "pos": 536,
+                    "span": 7
+                },
+                "file": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/core.bsq",
+                "attributes": [],
+                "pragmas": [],
+                "ns": "NSCore",
+                "name": "Any",
+                "terms": [],
+                "provides": [],
+                "invariants": [],
+                "fields": [],
+                "vcallMap": []
+            }
+        ]
+    ],
+    "entityDecls": [
+        [
+            "NSCore::Regex",
+            {
+                "isentity": true,
+                "ooname": "NSCore::Regex",
+                "tkey": "NSCore::Regex",
+                "sinfo": {
+                    "line": 398,
+                    "column": 0,
+                    "pos": 13449,
+                    "span": 6
+                },
+                "file": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/core.bsq",
+                "attributes": [],
+                "pragmas": [],
+                "ns": "NSCore",
+                "name": "Regex",
+                "terms": [],
+                "provides": [
+                    "NSCore::Some"
+                ],
+                "invariants": [],
+                "fields": [],
+                "vcallMap": []
+            }
+        ],
+        [
+            "NSCore::CryptoHash",
+            {
+                "isentity": true,
+                "ooname": "NSCore::CryptoHash",
+                "tkey": "NSCore::CryptoHash",
+                "sinfo": {
+                    "line": 383,
+                    "column": 0,
+                    "pos": 12958,
+                    "span": 6
+                },
+                "file": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/core.bsq",
+                "attributes": [],
+                "pragmas": [],
+                "ns": "NSCore",
+                "name": "CryptoHash",
+                "terms": [],
+                "provides": [
+                    "NSCore::KeyType",
+                    "NSCore::Parsable",
+                    "NSCore::PODType",
+                    "NSCore::APIType",
+                    "NSCore::Some"
+                ],
+                "invariants": [],
+                "fields": [],
+                "vcallMap": []
+            }
+        ],
+        [
+            "NSCore::LogicalTime",
+            {
+                "isentity": true,
+                "ooname": "NSCore::LogicalTime",
+                "tkey": "NSCore::LogicalTime",
+                "sinfo": {
+                    "line": 375,
+                    "column": 0,
+                    "pos": 12562,
+                    "span": 6
+                },
+                "file": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/core.bsq",
+                "attributes": [
+                    "struct"
+                ],
+                "pragmas": [],
+                "ns": "NSCore",
+                "name": "LogicalTime",
+                "terms": [],
+                "provides": [
+                    "NSCore::KeyType",
+                    "NSCore::Parsable",
+                    "NSCore::PODType",
+                    "NSCore::APIType",
+                    "NSCore::Some"
+                ],
+                "invariants": [],
+                "fields": [],
+                "vcallMap": []
+            }
+        ],
+        [
+            "NSCore::UUID",
+            {
+                "isentity": true,
+                "ooname": "NSCore::UUID",
+                "tkey": "NSCore::UUID",
+                "sinfo": {
+                    "line": 370,
+                    "column": 0,
+                    "pos": 12330,
+                    "span": 6
+                },
+                "file": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/core.bsq",
+                "attributes": [
+                    "struct"
+                ],
+                "pragmas": [],
+                "ns": "NSCore",
+                "name": "UUID",
+                "terms": [],
+                "provides": [
+                    "NSCore::KeyType",
+                    "NSCore::Parsable",
+                    "NSCore::PODType",
+                    "NSCore::APIType",
+                    "NSCore::Some"
+                ],
+                "invariants": [],
+                "fields": [],
+                "vcallMap": []
+            }
+        ],
+        [
+            "NSCore::ISOTime",
+            {
+                "isentity": true,
+                "ooname": "NSCore::ISOTime",
+                "tkey": "NSCore::ISOTime",
+                "sinfo": {
+                    "line": 365,
+                    "column": 0,
+                    "pos": 12135,
+                    "span": 6
+                },
+                "file": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/core.bsq",
+                "attributes": [
+                    "struct"
+                ],
+                "pragmas": [],
+                "ns": "NSCore",
+                "name": "ISOTime",
+                "terms": [],
+                "provides": [
+                    "NSCore::Parsable",
+                    "NSCore::PODType",
+                    "NSCore::APIType",
+                    "NSCore::Some"
+                ],
+                "invariants": [],
+                "fields": [],
+                "vcallMap": []
+            }
+        ],
+        [
+            "NSCore::ByteBuffer",
+            {
+                "isentity": true,
+                "ooname": "NSCore::ByteBuffer",
+                "tkey": "NSCore::ByteBuffer",
+                "sinfo": {
+                    "line": 361,
+                    "column": 0,
+                    "pos": 12020,
+                    "span": 6
+                },
+                "file": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/core.bsq",
+                "attributes": [],
+                "pragmas": [],
+                "ns": "NSCore",
+                "name": "ByteBuffer",
+                "terms": [],
+                "provides": [
+                    "NSCore::APIValue",
+                    "NSCore::Some"
+                ],
+                "invariants": [],
+                "fields": [],
+                "vcallMap": []
+            }
+        ],
+        [
+            "NSCore::BufferCompression",
+            {
+                "isentity": true,
+                "ooname": "NSCore::BufferCompression",
+                "tkey": "NSCore::BufferCompression",
+                "sinfo": {
+                    "line": 353,
+                    "column": 0,
+                    "pos": 11898,
+                    "span": 4
+                },
+                "file": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/core.bsq",
+                "attributes": [
+                    "struct"
+                ],
+                "pragmas": [],
+                "ns": "NSCore",
+                "name": "BufferCompression",
+                "terms": [],
+                "provides": [
+                    "NSCore::Enum",
+                    "NSCore::Parsable",
+                    "NSCore::APIType"
+                ],
+                "invariants": [],
+                "fields": [],
+                "vcallMap": []
+            }
+        ],
+        [
+            "NSCore::BufferEncoding",
+            {
+                "isentity": true,
+                "ooname": "NSCore::BufferEncoding",
+                "tkey": "NSCore::BufferEncoding",
+                "sinfo": {
+                    "line": 346,
+                    "column": 0,
+                    "pos": 11831,
+                    "span": 4
+                },
+                "file": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/core.bsq",
+                "attributes": [
+                    "struct"
+                ],
+                "pragmas": [],
+                "ns": "NSCore",
+                "name": "BufferEncoding",
+                "terms": [],
+                "provides": [
+                    "NSCore::Enum",
+                    "NSCore::Parsable",
+                    "NSCore::APIType"
+                ],
+                "invariants": [],
+                "fields": [],
+                "vcallMap": []
+            }
+        ],
+        [
+            "NSCore::BufferFormat",
+            {
+                "isentity": true,
+                "ooname": "NSCore::BufferFormat",
+                "tkey": "NSCore::BufferFormat",
+                "sinfo": {
+                    "line": 339,
+                    "column": 0,
+                    "pos": 11764,
+                    "span": 4
+                },
+                "file": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/core.bsq",
+                "attributes": [
+                    "struct"
+                ],
+                "pragmas": [],
+                "ns": "NSCore",
+                "name": "BufferFormat",
+                "terms": [],
+                "provides": [
+                    "NSCore::Enum",
+                    "NSCore::Parsable",
+                    "NSCore::APIType"
+                ],
+                "invariants": [],
+                "fields": [],
+                "vcallMap": []
+            }
+        ],
+        [
+            "NSCore::String",
+            {
+                "isentity": true,
+                "ooname": "NSCore::String",
+                "tkey": "NSCore::String",
+                "sinfo": {
+                    "line": 220,
+                    "column": 0,
+                    "pos": 7736,
+                    "span": 6
+                },
+                "file": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/core.bsq",
+                "attributes": [],
+                "pragmas": [],
+                "ns": "NSCore",
+                "name": "String",
+                "terms": [],
+                "provides": [
+                    "NSCore::KeyType",
+                    "NSCore::PODType",
+                    "NSCore::APIType",
+                    "NSCore::Some"
+                ],
+                "invariants": [],
+                "fields": [],
+                "vcallMap": []
+            }
+        ],
+        [
+            "NSCore::Float64",
+            {
+                "isentity": true,
+                "ooname": "NSCore::Float64",
+                "tkey": "NSCore::Float64",
+                "sinfo": {
+                    "line": 163,
+                    "column": 0,
+                    "pos": 5566,
+                    "span": 6
+                },
+                "file": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/core.bsq",
+                "attributes": [
+                    "struct"
+                ],
+                "pragmas": [],
+                "ns": "NSCore",
+                "name": "Float64",
+                "terms": [],
+                "provides": [
+                    "NSCore::Parsable",
+                    "NSCore::PODType",
+                    "NSCore::APIType",
+                    "NSCore::Some"
+                ],
+                "invariants": [],
+                "fields": [],
+                "vcallMap": []
+            }
+        ],
+        [
+            "NSCore::BigInt",
+            {
+                "isentity": true,
+                "ooname": "NSCore::BigInt",
+                "tkey": "NSCore::BigInt",
+                "sinfo": {
+                    "line": 155,
+                    "column": 0,
+                    "pos": 5246,
+                    "span": 6
+                },
+                "file": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/core.bsq",
+                "attributes": [],
+                "pragmas": [],
+                "ns": "NSCore",
+                "name": "BigInt",
+                "terms": [],
+                "provides": [
+                    "NSCore::KeyType",
+                    "NSCore::Parsable",
+                    "NSCore::PODType",
+                    "NSCore::APIType",
+                    "NSCore::Some"
+                ],
+                "invariants": [],
+                "fields": [],
+                "vcallMap": []
+            }
+        ],
+        [
+            "NSCore::Int",
+            {
+                "isentity": true,
+                "ooname": "NSCore::Int",
+                "tkey": "NSCore::Int",
+                "sinfo": {
+                    "line": 126,
+                    "column": 0,
+                    "pos": 4470,
+                    "span": 6
+                },
+                "file": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/core.bsq",
+                "attributes": [
+                    "struct"
+                ],
+                "pragmas": [],
+                "ns": "NSCore",
+                "name": "Int",
+                "terms": [],
+                "provides": [
+                    "NSCore::KeyType",
+                    "NSCore::Parsable",
+                    "NSCore::PODType",
+                    "NSCore::APIType",
+                    "NSCore::Some"
+                ],
+                "invariants": [],
+                "fields": [],
+                "vcallMap": []
+            }
+        ],
+        [
+            "NSCore::Bool",
+            {
+                "isentity": true,
+                "ooname": "NSCore::Bool",
+                "tkey": "NSCore::Bool",
+                "sinfo": {
+                    "line": 102,
+                    "column": 0,
+                    "pos": 3856,
+                    "span": 6
+                },
+                "file": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/core.bsq",
+                "attributes": [
+                    "struct"
+                ],
+                "pragmas": [],
+                "ns": "NSCore",
+                "name": "Bool",
+                "terms": [],
+                "provides": [
+                    "NSCore::Some",
+                    "NSCore::Truthy",
+                    "NSCore::PODType",
+                    "NSCore::APIType"
+                ],
+                "invariants": [],
+                "fields": [],
+                "vcallMap": []
+            }
+        ],
+        [
+            "NSCore::None",
+            {
+                "isentity": true,
+                "ooname": "NSCore::None",
+                "tkey": "NSCore::None",
+                "sinfo": {
+                    "line": 90,
+                    "column": 0,
+                    "pos": 3547,
+                    "span": 6
+                },
+                "file": "/usr/home/basilisk/BosqueLanguage/impl/bin/core/cpp/core.bsq",
+                "attributes": [
+                    "struct"
+                ],
+                "pragmas": [],
+                "ns": "NSCore",
+                "name": "None",
+                "terms": [],
+                "provides": [
+                    "NSCore::Truthy",
+                    "NSCore::PODType",
+                    "NSCore::APIType"
+                ],
+                "invariants": [],
+                "fields": [],
+                "vcallMap": []
+            }
+        ]
+    ],
+    "typeMap": [
+        [
+            "NSCore::Any",
+            {
+                "options": [
+                    {
+                        "kind": "concept",
+                        "ckeys": [
+                            "NSCore::Any"
+                        ]
+                    }
+                ]
+            }
+        ],
+        [
+            "NSCore::Some",
+            {
+                "options": [
+                    {
+                        "kind": "concept",
+                        "ckeys": [
+                            "NSCore::Some"
+                        ]
+                    }
+                ]
+            }
+        ],
+        [
+            "NSCore::Convertable",
+            {
+                "options": [
+                    {
+                        "kind": "concept",
+                        "ckeys": [
+                            "NSCore::Convertable"
+                        ]
+                    }
+                ]
+            }
+        ],
+        [
+            "NSCore::Parsable",
+            {
+                "options": [
+                    {
+                        "kind": "concept",
+                        "ckeys": [
+                            "NSCore::Parsable"
+                        ]
+                    }
+                ]
+            }
+        ],
+        [
+            "NSCore::Validator",
+            {
+                "options": [
+                    {
+                        "kind": "concept",
+                        "ckeys": [
+                            "NSCore::Validator"
+                        ]
+                    }
+                ]
+            }
+        ],
+        [
+            "NSCore::KeyType",
+            {
+                "options": [
+                    {
+                        "kind": "concept",
+                        "ckeys": [
+                            "NSCore::KeyType"
+                        ]
+                    }
+                ]
+            }
+        ],
+        [
+            "NSCore::PODType",
+            {
+                "options": [
+                    {
+                        "kind": "concept",
+                        "ckeys": [
+                            "NSCore::PODType"
+                        ]
+                    }
+                ]
+            }
+        ],
+        [
+            "NSCore::APIType",
+            {
+                "options": [
+                    {
+                        "kind": "concept",
+                        "ckeys": [
+                            "NSCore::APIType"
+                        ]
+                    }
+                ]
+            }
+        ],
+        [
+            "NSCore::APIValue",
+            {
+                "options": [
+                    {
+                        "kind": "concept",
+                        "ckeys": [
+                            "NSCore::APIValue"
+                        ]
+                    }
+                ]
+            }
+        ],
+        [
+            "NSCore::Truthy",
+            {
+                "options": [
+                    {
+                        "kind": "concept",
+                        "ckeys": [
+                            "NSCore::Truthy"
+                        ]
+                    }
+                ]
+            }
+        ],
+        [
+            "NSCore::Enum",
+            {
+                "options": [
+                    {
+                        "kind": "concept",
+                        "ckeys": [
+                            "NSCore::Enum"
+                        ]
+                    }
+                ]
+            }
+        ],
+        [
+            "NSCore::IdKey",
+            {
+                "options": [
+                    {
+                        "kind": "concept",
+                        "ckeys": [
+                            "NSCore::IdKey"
+                        ]
+                    }
+                ]
+            }
+        ],
+        [
+            "NSCore::Tuple",
+            {
+                "options": [
+                    {
+                        "kind": "concept",
+                        "ckeys": [
+                            "NSCore::Tuple"
+                        ]
+                    }
+                ]
+            }
+        ],
+        [
+            "NSCore::Record",
+            {
+                "options": [
+                    {
+                        "kind": "concept",
+                        "ckeys": [
+                            "NSCore::Record"
+                        ]
+                    }
+                ]
+            }
+        ],
+        [
+            "NSCore::Object",
+            {
+                "options": [
+                    {
+                        "kind": "concept",
+                        "ckeys": [
+                            "NSCore::Object"
+                        ]
+                    }
+                ]
+            }
+        ],
+        [
+            "NSCore::None",
+            {
+                "options": [
+                    {
+                        "kind": "entity",
+                        "ekey": "NSCore::None"
+                    }
+                ]
+            }
+        ],
+        [
+            "NSCore::Bool",
+            {
+                "options": [
+                    {
+                        "kind": "entity",
+                        "ekey": "NSCore::Bool"
+                    }
+                ]
+            }
+        ],
+        [
+            "NSCore::Int",
+            {
+                "options": [
+                    {
+                        "kind": "entity",
+                        "ekey": "NSCore::Int"
+                    }
+                ]
+            }
+        ],
+        [
+            "NSCore::BigInt",
+            {
+                "options": [
+                    {
+                        "kind": "entity",
+                        "ekey": "NSCore::BigInt"
+                    }
+                ]
+            }
+        ],
+        [
+            "NSCore::Float64",
+            {
+                "options": [
+                    {
+                        "kind": "entity",
+                        "ekey": "NSCore::Float64"
+                    }
+                ]
+            }
+        ],
+        [
+            "NSCore::String",
+            {
+                "options": [
+                    {
+                        "kind": "entity",
+                        "ekey": "NSCore::String"
+                    }
+                ]
+            }
+        ],
+        [
+            "NSCore::BufferFormat",
+            {
+                "options": [
+                    {
+                        "kind": "entity",
+                        "ekey": "NSCore::BufferFormat"
+                    }
+                ]
+            }
+        ],
+        [
+            "NSCore::BufferEncoding",
+            {
+                "options": [
+                    {
+                        "kind": "entity",
+                        "ekey": "NSCore::BufferEncoding"
+                    }
+                ]
+            }
+        ],
+        [
+            "NSCore::BufferCompression",
+            {
+                "options": [
+                    {
+                        "kind": "entity",
+                        "ekey": "NSCore::BufferCompression"
+                    }
+                ]
+            }
+        ],
+        [
+            "NSCore::ByteBuffer",
+            {
+                "options": [
+                    {
+                        "kind": "entity",
+                        "ekey": "NSCore::ByteBuffer"
+                    }
+                ]
+            }
+        ],
+        [
+            "NSCore::ISOTime",
+            {
+                "options": [
+                    {
+                        "kind": "entity",
+                        "ekey": "NSCore::ISOTime"
+                    }
+                ]
+            }
+        ],
+        [
+            "NSCore::UUID",
+            {
+                "options": [
+                    {
+                        "kind": "entity",
+                        "ekey": "NSCore::UUID"
+                    }
+                ]
+            }
+        ],
+        [
+            "NSCore::LogicalTime",
+            {
+                "options": [
+                    {
+                        "kind": "entity",
+                        "ekey": "NSCore::LogicalTime"
+                    }
+                ]
+            }
+        ],
+        [
+            "NSCore::CryptoHash",
+            {
+                "options": [
+                    {
+                        "kind": "entity",
+                        "ekey": "NSCore::CryptoHash"
+                    }
+                ]
+            }
+        ],
+        [
+            "NSCore::Regex",
+            {
+                "options": [
+                    {
+                        "kind": "entity",
+                        "ekey": "NSCore::Regex"
+                    }
+                ]
+            }
+        ]
+    ]
+}

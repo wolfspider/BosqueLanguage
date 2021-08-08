@@ -1,0 +1,150 @@
+namespace NSMain;
+
+identifier UserId = Int;
+enum GlobalEnum {
+    local,
+    network
+}
+
+entity Resource {
+    field access: UserId | GlobalEnum;
+    field data: String;
+}
+
+entity TapeDeck {
+    
+    invariant $name != "";
+    field name: String;
+    invariant $location != "";
+    field location: String;
+    invariant $age != 0;
+    field age: Int;
+    invariant $music != "";
+    field music: String;
+    invariant $stereo != false;
+    field stereo: Bool;
+}
+
+function getTapeDeck(name: String, location: String, age: Int, music: String, stereo: Bool): TapeDeck
+requires release name != "";
+requires release location != "";
+requires release age != 0;
+requires release music != "";
+requires release stereo != false;
+{
+    return TapeDeck@{
+        
+        name = name,
+        location = location,
+        age = age,
+        music = music,
+        stereo = stereo
+
+    };
+}
+
+function mktime(ref t: Int): 
+Int
+{
+        t = t + 4;
+        return t;
+}
+
+/*
+function GetTapeDeck(name: String, location: String, age: Int, music: String, stereo: Bool): TapeDeck
+//requires release name != "";
+//requires release location != "";
+//requires release age != 0;
+//requires release music != "";
+//requires release stereo != false;
+{
+    return TapeDeck@{
+        
+        name = name,
+        location = location,
+        age = age,
+        music = music,
+        stereo = stereo
+
+    }
+}*/
+
+enum Event 
+{
+        new,
+        detach,
+        tick,
+        yld,
+        block,
+        unblock,
+        schedule,
+        entry,
+        exit,
+        balance
+}
+
+function handler
+( event: Event ): 
+String
+        {
+            let evtmap = Map<Event, Int>@
+            {
+                Event::new => 1,
+                Event::detach => 2,
+                Event::tick => 3,
+                Event::yld => 4,
+                Event::block => 5,
+                Event::unblock => 6,
+                Event::schedule => 7,
+                Event::entry => 8,
+                Event::exit => 9,
+                Event::balance => 10
+            };
+             
+            return switch(evtmap.get(event)) {
+                case 1 => "new"
+                case 2 => "detach"
+                case 3 => "tick"
+                case 4 => "yld"
+                case 5 => "block"
+            };  
+        }
+
+entrypoint function main(): String {
+
+    
+    let hometapedeck: TapeDeck = 
+    getTapeDeck(
+        
+        "BSQ TapeDeck",
+        "Home",
+        3,
+        "Wagner",
+        true
+    );
+
+    let tv = 123456;
+
+    let time = mktime(ref tv);
+
+    let val = handler(Event::detach);
+
+    _debug(val);  
+
+    _debug(time);
+    _debug(hometapedeck);
+
+    return hometapedeck.name;
+
+    /*
+    return getTapeDeck(
+    
+        "BSQ TapeDeck",
+        "Home",
+        3,
+        "Wagner",
+        true
+    
+    );*/
+
+}

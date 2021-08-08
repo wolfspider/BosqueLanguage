@@ -1,0 +1,533 @@
+namespace NSMain;
+
+    entity 
+    Sys
+    {
+        const sched_slice: Int = 200;
+        const sched_slice_min_divisor: Int = 8; 
+        const penalty_fork: Int = 666;
+
+        /* Thread Types */
+        const interrupt: Int = 1;
+        const regular: Int = 2;
+        const interactive: Int = 4;
+
+        /* Needs to return a constant real value */
+        const domain_cache: Int = 0;
+    }
+
+    entity 
+    Group 
+    { 
+        field cores: Set<Core>; 
+    }
+
+    entity 
+    Domain
+    { 
+        field groups: Set<Group>;
+        field cores: Set<Core>;
+        field systemflag: Int;
+    }
+
+    entity 
+    Thread
+    {
+        field systhread: Int;
+        field load: Int;
+        field prio: Int;
+        field last_core: Core;
+        field rtime: Int;
+        field slptime: Int;
+        field last_blocked: Int;
+        field last_schedule: Int;
+        field slice: Int;
+    }
+
+    entity 
+    Core 
+    {
+
+        field sysid: Int;
+
+        field threads: Map<String,Any> = 
+        Map<String,Any>@
+        {
+            "CURRENT" => Thread@{},
+            "REALTIME" => List<Thread>@{},
+            "TIMESHARE" => List<Thread>@{},
+            "BLOCKED" => Set<Thread>@{},
+            "TERMINATED" => List<Thread>@{}
+        };
+
+        field cload: Int = 
+        this.threads
+        .get("REALTIME")
+        .get(fn(x) => x.load).sum() + 
+        this.threads
+        .get("TIMESHARE")
+        .get(fn(x) => x.load).sum() + 
+        this.threads
+        .get("CURRENT").load;
+
+        field sd: Set<Domain> =
+        Set<Domain>@{};
+
+        factory static domains(dsd: Set<Domain>): { sd: Set<Domain> } {
+           
+           let ndoms = dsd?.map<Domain>
+                (fn(d) => d?.groups.map<Group>
+                    (fn(g) => g?.cores.map<Core>
+                        (fn(c) => { 
+                            
+                            if(c.testcpu() == true)
+                            {
+                                return dsd;
+                            }
+                        
+                        })));
+
+            return this.update( sd = ndoms );
+        }
+
+        method steal(dst: Core): Bool {
+
+            var stealable = Set<Core>@{};
+
+            if(this.cload - dst.cload >= 2)
+            {
+                stealable = { this, dst }; 
+            }
+
+            var stolen = stealable
+                .sort(fn(a, b) => a.cload > b.cload )
+                .front();
+
+            //TODO: need some do-while logic here
+
+            if(stolen.cload - dst.cload >= 2) {
+                
+                this.threads.allOf(fn(t) => 
+                {
+
+                    if(t.prio == Sys::regular)
+                    {
+                        this.threads = this
+                            .update
+                            ( 
+                                threads = threads
+                                    .append(dst.get("TIMESHARE"))
+                            );
+                    }
+                    else
+                    {
+
+                        this.threads = this
+                            .update
+                            ( 
+                                threads = threads
+                                    .append(dst.get("REALTIME"))
+                            );
+
+                    }
+
+                });
+            }
+
+            return false;
+
+        }
+
+        method testcpu(): Bool {
+            return true;
+        }
+
+        method runnable(c: Core): Int {
+            return 
+            c.threads.get("REALTIME").size() + 
+            c.threads.get("TIMESHARE").size() + 
+            c.threads.get("CURRENT").size();
+        }
+        
+    }
+
+    entity 
+    Cores 
+    {
+        field active: Set<Core> = Set<Core>@{};
+    }
+
+    enum 
+    Event 
+    {
+        new,
+        detach,
+        tick,
+        yld,
+        block,
+        unblock,
+        schedule,
+        entry,
+        exit,
+        balance
+    }
+
+    entity 
+    Thread_Event
+    {
+        field status: Event = Event::new;
+        field target: Thread = Thread@{};
+        field name: String;
+
+        static update_rtime(thr: Thread): Thread {
+                 
+            thr = thr.update
+            ( 
+                rtime = 0 - thr.lastschedule 
+            );
+
+            return thr;
+        }
+
+        static get_slice(thr: Thread): Int {
+
+            var nb_threads = thr.last_core.cload;
+            if(nb_threads > Sys::sched_slice_min_divisor)
+            {
+                return Sys::sched_slice / 
+                    Sys::sched_slice_min_divisor;
+            }
+            else
+            {
+                nb_threads = (nb_threads > 0) ? 
+                nb_threads : 1;
+                
+                return Sys::sched_slice / 
+                    nb_threads;
+            }
+
+        }
+
+        static pickup_core(thr: Thread, cs: Set<Core>): Core {
+
+            if(thr.prio == Sys::interrupt) {
+                return thr.last_core;
+            }
+
+            let thrcore = thr.last_core.sd.map<Domain>(fn(d) =>
+            {
+                if(d.systemflag != 0) {
+                return d.cores.map<Core>(fn(c) => 
+                    {
+                        if(c.cload == 0)
+                        {
+                            return c;
+                        }
+                    });
+                }
+            });
+
+            if(thrcore)
+            {
+                return thrcore;
+            }
+
+            return cs
+                .sort(fn(a, b) => a.cload < b.cload)
+                .front();
+
+        }
+
+        static update_realtime(thr: Thread): Bool {
+
+            if(thr.prio == Sys::interrupt) 
+            {
+                thr = thr.update( prio = thr.prio );
+            }
+            elif(thr.slptime > thr.rtime)
+            {
+                thr = thr.update( prio = Sys::interactive );
+            }
+            else
+            {
+                thr = thr.update( prio = Sys::regular );
+            }
+
+            return 
+            thr.prio == Sys::interactive || 
+            thr.prio == Sys::interrupt;
+
+        }
+        
+        static new
+        (cs: Set<Core>, target: Thread):
+        Bool
+        {
+            let idlest: Core = cs
+                        .sort(fn(a,b) => a.cload < b.cload)
+                        .front();
+
+                        if(this.target)
+                        {
+                            
+                            target = target.update
+                            ( 
+                                rtime = rtime + 
+                                Sys::penalty_fork
+                            );
+                            
+                            target = target.update
+                            (
+                                prio = this.target.prio
+                            );
+                        }
+                        else
+                        {
+                            
+                            target = target.update
+                            ( 
+                                prio = Sys::regular
+                            );
+                            
+                        }
+
+                        target = target
+                        .update( last_core = idlest );
+                            
+                        target = target
+                        .update
+                        (
+                            slice = get_slice(target)
+                        );
+
+                        if(target.prio == Sys::regular)
+                        {    
+                            target = idlest.threads
+                            .get("TIMESHARE").front();
+                        }
+                        else
+                        {
+                            target = idlest.threads
+                            .get("REALTIME").front();
+                        }
+
+            return true;
+        }
+
+        static detach (cs: Set<Core>, target: Thread):
+        Bool 
+        {
+            let core: Core = cs.front();
+
+            var thr = core.threads;
+
+            thr = thr.get("TERMINATED").append(target);
+
+            core = core
+            .update
+            (
+                threads = thr
+            );
+
+            return true;
+        }
+
+        static tick (cs: Set<Core>, target: Thread): 
+        Bool
+        {
+            let core: Core = cs.front();
+
+            var thr = core.threads;
+            
+            target = target.update
+            (
+                slice = slice - 1
+            );
+
+            if(target.slice <= 0)
+            {
+                target = update_rtime(target);
+            }
+
+            if(target.prio == Sys::regular)
+            {
+
+                thr = thr.get("TIMESHARE").append(target);
+
+                core = core
+                .update
+                (
+                    threads = thr
+                );
+            }
+            else
+            {
+                thr = thr.get("REALTIME").append(target);
+
+                core = core
+                .update
+                (
+                    threads = thr
+                );
+            }
+
+            return true;
+        }
+
+        static yld(cs: Set<Core>, target: Thread): 
+        Bool
+        {
+            let core: Core = cs.front();
+
+            var thr = core.threads;
+            
+            target = update_rtime(target);
+
+            if(target.prio == Sys::regular)
+            {
+
+                thr = thr.get("TIMESHARE").append(target);
+
+                core = core
+                .update
+                (
+                    threads = thr
+                );
+            }
+            else
+            {
+                thr = thr.get("REALTIME").append(target);
+
+                core = core
+                .update
+                (
+                    threads = thr
+                );
+            }
+
+            return true;
+        }
+
+        static block(cs: Set<Core>, target: Thread): 
+        Bool
+        {
+            
+            let core: Core = cs.front();
+
+            var thr = core.threads;
+            
+            target = target.update
+            (
+                last_blocked = 0
+            );
+
+            thr = thr.get("BLOCKED").append(target);
+
+            core = core
+            .update
+            (
+                threads = thr
+            );
+
+        }
+
+        static unblock(cs: Set<Core>, target: Thread):
+        Bool
+        {
+            
+            let core: Core = cs.front();
+
+            var thr = core.threads;
+            
+            let idlest: Core = pickup_core(target);
+
+            target = target.update
+            (
+                slptime = 0 - target.last_blocked
+            );
+
+            if(update_realtime(target))
+            {
+                thr = thr.get("REALTIME").append(target);
+
+                core = core
+                .update
+                (
+                    threads = thr
+                );
+            }
+            else
+            {
+                thr = thr.get("TIMESHARE").append(target);
+
+                core = core
+                .update
+                (
+                    threads = thr
+                );
+            }
+            
+        }
+
+        static schedule(cs: Set<Core>):
+        Bool
+        {
+            let core: Core = cs.front();
+
+            var thr = core.threads.get("REALTIME").front();
+
+            if(!thr)
+            {
+                thr = core.threads.get("TIMESHARE").front();
+            }
+
+            thr = thr.update(
+                last_schedule = 0,
+                last_core = core,
+                slice = get_slice(thr)
+            );
+
+            core = core.update
+            (
+                threads = threads.get("CURRENT").append(thr)
+            );
+
+            return true; 
+        }
+
+        static handler
+        (status: Event, cs: Set<Core>): 
+        Result<Bool>
+        {
+            
+            let evtmap = Map<Event, Int>@
+            {
+                Event::new => 1,
+                Event::detach => 2,
+                Event::tick => 3,
+                Event::yld => 4,
+                Event::block => 5,
+                Event::unblock => 6,
+                Event::schedule => 7,
+                Event::entry => 8,
+                Event::exit => 9,
+                Event::balance => 10
+            };
+            
+            return switch(evtmap.get(status)) {
+                case 1 => new(cs, this.target)
+                case 2 => detach(cs, this.target)
+                case 3 => tick(cs, this.target)
+                case 4 => yld(cs, this.target)
+                case 5 => block(cs, this.target)
+                case 6 => unblock(cs, this.target)
+                case 7 => schedule(cs)
+            };  
+        }
+    }
+
+    entrypoint function main(in: String): String {
+        return (in != "") ? in : "EMPTY";
+    }
+
+

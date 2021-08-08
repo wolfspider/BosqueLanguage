@@ -1,0 +1,20 @@
+
+> bosque-reference-implementation@0.5.0-rc-1 test
+> tsc -p tsconfig.json && node ./bin/test/test_runner.js
+
+--------
+Running doc_examples/readme.bsq suite with 56 tests...
+Running readme.bsq@compile...pass
+Running readme.bsq@aot--add2C#0...pass
+Running readme.bsq@aot--allPositiveC#1...pass
+Running readme.bsq@aot--allPositiveCapture#2...pass
+Running readme.bsq@aot--signC5#3...pass
+Running readme.bsq@aot--signCm5#4...pass
+Running readme.bsq@aot--signCnone#5...pass
+Running readme.bsq@aot--recordtupleC#6...pass
+Running readme.bsq@aot--checkInvsAndObjs#7...pass
+Running readme.bsq@aot--checkInvsAndObjsFail#8...pass
+Running readme.bsq@aot--sstringAccepts#9...pass
+Running readme.bsq@aot--sstringLiteral#10...pass
+Running readme.bsq@aot--sstringAsError#11...pass
+Running readme.bsq@aot--sstringAsOk#12...

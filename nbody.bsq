@@ -1,0 +1,452 @@
+//-------------------------------------------------------------------------------------------------------
+// Copyright (C) Microsoft. All rights reserved.
+// Licensed under the MIT license. See LICENSE.txt file in the project root for full license information.
+//-------------------------------------------------------------------------------------------------------
+
+//
+//This is a bosque test/benchmark for a nbody program -- based on https://benchmarksgame-team.pages.debian.net/benchmarksgame/description/nbody.html#nbody
+//
+
+namespace NSMain;
+
+function makeValue<T>(v: T): T {
+    return v;
+}
+
+struct entity Vector3 {
+   field x: Float64;
+   field y: Float64;
+   field z: Float64;
+
+   const zero: Vector3 = Vector3@{0.0f, 0.0f, 0.0f};
+
+   method add(v: Vector3): Vector3 {
+      return Vector3@{this.x + v.x, this.y + v.y, this.z + v.z};
+   } 
+
+   method sub(v: Vector3): Vector3 {
+      return Vector3@{this.x - v.x, this.y - v.y, this.z - v.z};
+   }
+
+   method scale(s: Float64): Vector3 {
+      return Vector3@{this.x * s, this.y * s, this.z * s};
+   }
+
+   method magnitude(): Float64 {
+      return (this.x.square() + this.y.square() + this.z.square()).sqrt();
+   }
+
+   static distance(v1: Vector3, v2: Vector3): Float64 {
+      return ((v1.x - v2.x).square() + (v1.y - v2.y).square() + (v1.z - v2.z).square()).sqrt();
+   }
+
+   static sum(l: List<Vector3>): Vector3 {
+      return NSIterate::reduce<Vector3>(Vector3::zero, l, fn(a, b) => a.add(b), true);
+   }
+
+   static minus(l: List<Vector3>): Vector3 {
+      return NSIterate::reduce<Vector3>(Vector3::zero, l, fn(a, b) => a.sub(b), false);
+   }
+
+   static f64minus(l: List<Float64>): Float64 {
+      return NSIterate::reduce<Float64>(0.0f, l, fn(a, b) => (a - b), false);
+   }
+}
+
+entity Body {
+   const pi: Float64 = 3.141592653589793f;
+   const solar_mass: Float64 = 4.0f * Body::pi * Body::pi;
+   const days_per_year: Float64 = 365.24f;
+
+   field name: String;
+   field mass: Float64;
+   field pos: Vector3;
+   field vel: Vector3;
+
+   const jupiter: Body = Body@{
+      name="jupiter",
+      mass=9.54791938424326609e-04f * Body::solar_mass,
+      pos=Vector3@{4.84143144246472090e+00f, -1.16032004402742839e+00f, -1.03622044471123109e-01f},
+      vel=Vector3@{1.66007664274403694e-03f * Body::days_per_year, 7.69901118419740425e-03f * Body::days_per_year, -6.90460016972063023e-05f * Body::days_per_year}
+   };
+
+   const saturn: Body = Body@{
+      name="saturn",
+      mass=2.85885980666130812e-04f * Body::solar_mass,
+      pos=Vector3@{8.34336671824457987e+00f, 4.12479856412430479e+00f, -4.03523417114321381e-01f},
+      vel=Vector3@{-2.76742510726862411e-03f * Body::days_per_year, 4.99852801234917238e-03f * Body::days_per_year, 2.30417297573763929e-05f * Body::days_per_year}
+   };
+
+   const uranus: Body = Body@{
+      name="uranus",
+      mass=4.36624404335156298e-05f * Body::solar_mass,
+      pos=Vector3@{1.28943695621391310e+01f, -1.51111514016986312e+01f, -2.23307578892655734e-01f},
+      vel=Vector3@{2.96460137564761618e-03f * Body::days_per_year, 2.37847173959480950e-03f * Body::days_per_year, -2.96589568540237556e-05f * Body::days_per_year}
+   };
+
+   const neptune: Body = Body@{
+      name="neptune",
+      mass=5.15138902046611451e-05f * Body::solar_mass,
+      pos=Vector3@{1.53796971148509165e+01f, -2.59193146099879641e+01f, 1.79258772950371181e-01f},
+      vel=Vector3@{2.68067772490389322e-03f * Body::days_per_year, 1.62824170038242295e-03f * Body::days_per_year, -9.51592254519715870e-05f * Body::days_per_year} 
+   };
+
+   const sun: Body = Body@{
+      name="sun",
+      mass=Body::solar_mass,
+      pos=Vector3::zero,
+      vel=Vector3::zero
+   };
+}
+
+struct entity AdvPair {
+   field body: Body;
+   field shift: Vector3;
+}
+
+entity NBodySystem {
+   field bodies: List<Body>;
+   field count: Int = 0;
+
+   factory static create(): { bodies: List<Body> } {
+      let planets = List<Body>@{
+         Body::jupiter,
+         Body::saturn,
+         Body::uranus,
+         Body::neptune
+      };
+
+      let px = Float64::sum(planets.map<Float64>(fn(p) => p.vel.x * p.mass));
+      let py = Float64::sum(planets.map<Float64>(fn(p) => p.vel.y * p.mass));
+      let pz = Float64::sum(planets.map<Float64>(fn(p) => p.vel.z * p.mass));
+      let sunv = Vector3@{ -px / Body::solar_mass, -py / Body::solar_mass, -pz / Body::solar_mass };
+
+      return { bodies=List<Body>@{Body::sun.update(vel=sunv), Body::jupiter, Body::saturn, Body::uranus, Body::neptune} };
+   }
+
+   method adv(b: Int, bodies: List<Body>, dt: Float64): List<Body> {
+
+      
+      let lb = ListOf::range(b + 1, bodies.size());
+
+         let ivx = bodies.get(b).vel.x;
+         let ivy = bodies.get(b).vel.y;
+         let ivz = bodies.get(b).vel.z;
+
+         
+         let llvec = lb.map<AdvPair>(fn(v) => {
+
+            //_debug(v);
+            
+            let dx = bodies.get(b).pos.x - bodies.get(v).pos.x;
+            
+            let dy = bodies.get(b).pos.y - bodies.get(v).pos.y;
+            
+            let dz = bodies.get(b).pos.z - bodies.get(v).pos.z;
+            
+            let dsq = dx.square() + dy.square() + dz.square();
+            let mag = dt / (dsq * dsq.sqrt());
+            
+            
+            //let dist = Vector3::distance(this.bodies.get(b).pos, this.bodies.get(v).pos);
+            //let mag = dt / Float64::pow(dist, 3f);
+            
+            let iivx = ivx - dx * bodies.get(v).mass * mag;
+            let iivy = ivy - dy * bodies.get(v).mass * mag;
+            let iivz = ivz - dz * bodies.get(v).mass * mag;
+            
+            /*
+            _debug("accurate begin");
+            _debug("dsq");
+            _debug(dsq);
+            _debug("mag");
+            _debug(mag);
+            _debug("ivx");
+            _debug(iivx);
+            _debug("ivy");
+            _debug(iivy);
+            _debug("ivz");
+            _debug(iivz);
+            _debug("accurate end");*/
+            
+            
+            let total = AdvPair@{body=bodies.get(v).update(vel=Vector3@{bodies.get(v).vel.x + dx * bodies.get(b).mass * mag, bodies.get(v).vel.y + dy * bodies.get(b).mass * mag, bodies.get(v).vel.z + dz * bodies.get(b).mass * mag}),shift=Vector3@{iivx,iivy,iivz}};
+
+            return total;
+
+         });
+
+         
+         var totlist = List<Body>::concat(
+            llvec
+               .map<Body>(fn(x) => x.body).size() + 1 < bodies.size() ? 
+            bodies.
+               slice(0, b + 1) : 
+            List<Body>@{bodies.front()},
+            llvec.map<Body>(fn(x) => x.body)
+            .mapIndex<Body>(fn(x,i) => {
+                  
+               if(i == b)
+               {
+                  var v = x;
+
+                  v = v.update(vel=Vector3::sum(llvec.map<Vector3>(fn(x) => x.shift)));
+
+                  return v;
+               }
+
+               return x;
+
+               })
+            );
+
+         return totlist;
+
+   }
+
+   method energy2(): Float64 {
+    
+        let kineticEnergies = this.bodies.map<Float64>(fn(b) => {     
+         let vs = (b.vel.x.square() + b.vel.y.square() + b.vel.z.square());
+         return 0.5f * b.mass * vs;
+        });
+        
+        let ppairs = this.bodies.join<Body>(this.bodies, fn(b1, b2) => b1.name != b2.name);
+        let potentialEnergies = ppairs.map<Float64>(fn(bp) => {
+            return (bp.0.mass * bp.1.mass) / ((bp.0.pos.x - bp.1.pos.x).square() + (bp.0.pos.y - bp.1.pos.y).square() + (bp.0.pos.z - bp.1.pos.z).square()).sqrt();
+        });
+
+        return Float64::sum(kineticEnergies) - Float64::sum(potentialEnergies);
+    }
+
+   method energy(): Float64 {
+      let keneticEnergies = this.bodies.mapIndex<Float64>(fn(b,i) => {
+         let vv = b.vel;
+         let vs = (vv.x.square() + vv.y.square() + vv.z.square());
+         var e = 0.0f;
+         e = e + b.mass * vs * 0.5f;
+         _debug(e);
+         let l = ListOf::range(i + 1,this.bodies.size());
+
+         //_debug(l);
+    
+         let le = l?.map<Float64>(fn(x) => {
+            return (b.mass * this.bodies.get(x).mass) / Vector3::distance(b.pos, this.bodies.get(x).pos);
+         });
+
+         if(le.size() > 0)
+         {
+            e = e - Float64::sum(le);
+         }
+         _debug(e);
+
+         return e;
+
+      });
+
+      return Float64::sum(keneticEnergies);
+   }
+
+   method advance(dt: Float64, counter: Int): NBodySystem {
+      
+      
+      var totlist = this.adv(0,this.bodies,dt);
+
+      totlist = this.adv(1,this.bodies,dt);
+
+      totlist = this.adv(2,this.bodies,dt);
+
+      totlist = this.adv(3,this.bodies,dt);
+
+      /*
+      totlist = totlist.map<Body>(fn(x) => {
+
+         let px = x.pos.x + dt * x.vel.x;
+         let py = x.pos.y + dt * x.vel.y;
+         let pz = x.pos.z + dt * x.vel.z;
+
+         return x.update(pos=Vector3@{px,py,pz});
+
+      });*/
+
+      /*
+      let l = ListOf::range(0,this.bodies.size() - 1);
+
+      var lbodies = l.map<List<Body>>(fn(b) => {
+
+         
+         
+         
+         let lb = ListOf::range(b + 1, this.bodies.size());
+
+         let ivx = this.bodies.get(b).vel.x;
+         let ivy = this.bodies.get(b).vel.y;
+         let ivz = this.bodies.get(b).vel.z;
+
+         let llvec = lb.map<AdvPair>(fn(v) => {
+
+            //_debug(v);
+            
+            let dx = this.bodies.get(b).pos.x - this.bodies.get(v).pos.x;
+
+            let dy = this.bodies.get(b).pos.y - this.bodies.get(v).pos.y;
+
+            let dz = this.bodies.get(b).pos.z - this.bodies.get(v).pos.z;
+
+            let dsq = dx.square() + dy.square() + dz.square();
+            let mag = dt / (dsq * dsq.sqrt());
+            //let dist = Vector3::distance(this.bodies.get(b).pos, this.bodies.get(v).pos);
+            //let mag = dt / Float64::pow(dist, 3f);
+
+            let iivx = ivx - dx * this.bodies.get(v).mass * mag;
+            let iivy = ivy - dy * this.bodies.get(v).mass * mag;
+            let iivz = ivz - dz * this.bodies.get(v).mass * mag;
+            
+            
+            _debug("accurate begin");
+            _debug("dsq");
+            _debug(dsq);
+            _debug("mag");
+            _debug(mag);
+            _debug("ivx");
+            _debug(iivx);
+            _debug("ivy");
+            _debug(iivy);
+            _debug("ivz");
+            _debug(iivz);
+            _debug("accurate end");
+
+            let total = AdvPair@{body=this.bodies.get(v).update(vel=Vector3@{this.bodies.get(v).vel.x + dx * this.bodies.get(b).mass * mag, this.bodies.get(v).vel.y + dy * this.bodies.get(b).mass * mag, this.bodies.get(v).vel.z + dz * this.bodies.get(b).mass * mag}),shift=Vector3@{iivx,iivy,iivz}};
+
+            return total;
+
+         });
+
+
+         var totlist = List<Body>::concat(
+            llvec
+               .map<Body>(fn(x) => x.body).size() + 1 < this.bodies.size() ? 
+            this.bodies.
+               slice(0, b + 1) : 
+            List<Body>@{this.bodies.front()},
+            llvec.map<Body>(fn(x) => x.body)
+            ); 
+
+         totlist = totlist.mapIndex<Body>(fn(x,i) => {
+               
+            if(i == b)
+            {
+               var v = x;
+
+               v = v.update(vel=Vector3::sum(llvec.map<Vector3>(fn(x) => x.shift)));
+
+               return v;
+            }
+
+            return x;
+
+         });
+
+         //let nvel = b > 0 ? totlist.get(b).update(vel=llvec.map<Vector3>(fn(x) => x.shift).back()) :
+         //totlist.get(b);
+      
+         //let npos = this.bodies.get(b).pos.add(nvel.scale(dt));
+
+         return totlist;
+
+      });*/
+
+      /*
+      _debug("body");
+      _debug(lbodies.back());
+      //return this.update(bodies = lbodies.back(), count = counter + this.count );
+
+      let bpos = lbodies.back().map<Body>(fn(x) => {
+
+         let px = x.pos.x + dt * x.vel.x;
+         let py = x.pos.y + dt * x.vel.y;
+         let pz = x.pos.z + dt * x.vel.z;
+
+         return x.update(pos=Vector3@{px,py,pz});
+
+      });*/
+
+      
+      return this.update(bodies = totlist, count = counter + this.count );
+      
+      /*
+      let nbodies = this.bodies.map<Body>(fn(b) => {
+         let deltas = this.bodies
+            .filter(fn(bb) => bb.name != b.name)
+            .map<Vector3>(fn(bb) => {
+               let dist = Vector3::distance(b.pos, bb.pos);
+               let mag = dt / Float64::pow(dist, 3f);
+
+               return (bb.pos.sub(b.pos)).scale(bb.mass * mag);
+            });
+
+         let nvel = b.vel.add(Vector3::sum(deltas));
+         let npos = b.pos.add(nvel.scale(dt));
+
+         return b.update(vel=nvel, pos=npos);
+      });*/
+
+      //return NBodySystem@{ bodies = lbodies.back(), count = counter + this.count };
+   }
+}
+
+recursive function recf2(i: Int, n: NBodySystem): NBodySystem {
+    if(i == 0) {
+        return n.advance(0.01f,1);
+    }
+    else {
+        return recf1[recursive](i - 1, recf1[recursive](2500000,n.advance(0.01f,1)));
+    }
+}
+
+recursive function recf1(i: Int, n: NBodySystem): NBodySystem {
+    if(i == 0) {
+        return n.advance(0.01f,1);
+    }
+    else {
+        return recf1[recursive](i - 1, n.advance(0.01f,1));
+    }
+}
+
+entrypoint function main(): Float64? {
+   //let rsystem = NBodySystem@create().advance(0.01f);
+   var rsystem = NBodySystem@create();
+   
+   _debug(rsystem.energy());
+   
+   //_debug(rsystem);
+
+   var tv = 5000000;
+
+   //rsystem = recf2[recursive](2500000,rsystem);
+
+   rsystem = rsystem.advance(0.01f,1);
+
+   //let time = mktime(ref tv);
+   /*
+   let itr = l.map<NBodySystem?>(fn(x) => {
+      let r = rsystem.advance(0.01f,1);
+     
+      if(x == l.size() - 1)
+      {
+         return r;
+      }
+      return;
+   }).filter(fn(x) => x != none).front();*/
+
+   _debug(rsystem);
+
+   //let rs = NSIterate::steps<NBodySystem>(NBodySystem@create(), 500, fn(state) => state.advance(0.01f,1));
+   //_debug(itr?.count);
+   //_debug(rs.count);
+   //_debug(itr ?| none);
+   //return itr?.energy();
+   
+   return rsystem.energy();
+   //return rs.energy();
+}

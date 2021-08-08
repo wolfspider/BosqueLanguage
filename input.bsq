@@ -1,0 +1,70 @@
+namespace NSMain;
+
+entity Console {   
+    
+    field stdin: String;
+    field stdout: String;
+    field log: List<String> = List<String>@{};
+    const _: String = "";
+    
+    entrypoint factory static create(): 
+    { stdin: String, stdout: String } 
+    {     
+        return{ stdin=Console::_, stdout=Console::_ };
+    }
+
+    entrypoint method readline(): 
+    Console
+    {
+        return this.update
+        ( 
+            stdin=this.stdin.readline(),
+            
+            stdout=this.stdout
+        );
+    }
+
+    entrypoint method writeline( msg: String ): 
+    Console 
+    {
+        return this.update
+        ( 
+            stdin=this.stdin,
+            
+            stdout=Console::_.writeline(msg)
+        );
+    }
+
+    entrypoint method log(): 
+    Console
+    {
+        let feed = List<String>@{ this.stdin };
+        
+        return this.update( log=this.log.append(feed) );
+    }
+}
+
+entrypoint function main(): 
+String 
+{
+    
+    var cc: Console = Console@create();             
+     
+    cc = cc.writeline(" ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄");
+    cc = cc.writeline("█   ▄▄     ▄▄   █");
+    cc = cc.writeline("█  █  █▀▀▀█  █  █"); 
+    cc = cc.writeline("█   ▀▀▀   ▀▀▀   █"); 
+    cc = cc.writeline("█ ▄▀▀▀▀▀▀▀▀▀▀▀▄ █"); 
+    cc = cc.writeline("▀▄█▄█▄▄▄▄▄▄▄█▄█▄▀"); 
+    cc = cc.writeline("TapeDeck version 0.1");
+    cc = cc.writeline("--------------------");
+    cc = cc.writeline("Enter Command:");
+    cc = cc.readline().log();
+    
+    return String::concat
+    (
+        "Command Entered: ", 
+        cc.log.front()
+    );
+
+}

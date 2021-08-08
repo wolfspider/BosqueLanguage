@@ -1,0 +1,5 @@
+namespace NSMain;
+
+entrypoint function main(in: String): String {
+    return (in != "") ? in : "EMPTY";
+}

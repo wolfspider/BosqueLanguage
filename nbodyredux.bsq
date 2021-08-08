@@ -1,0 +1,618 @@
+namespace NSMain;
+
+function makeValue<T>(v: T): T {
+    return v;
+}
+
+function initSun(bodies: List<Body>): List<Body> {
+
+    let pi: Float64 = 3.141592653589793f;
+    let solar_mass: Float64 = 4.0f * pi * pi;
+
+    let px = Float64::sum(bodies.map<Float64>(fn(p) => p.vx * p.m));
+    var py = Float64::sum(bodies.map<Float64>(fn(p) => p.vy * p.m));
+    var pz = Float64::sum(bodies.map<Float64>(fn(p) => p.vz * p.m));
+
+    let sun = Body@{ name="sun", x=0.0f, y=0.0f, z=0.0f, vx= -px / solar_mass, vy= -py / solar_mass, vz= -pz / solar_mass, m=solar_mass, mass=solar_mass, pos=Vector3::zero, vel=Vector3::zero };
+
+    var blist: List<Body> = List<Body>@{ sun };
+
+    blist = blist.prepend(bodies);
+
+    return blist;
+
+}
+
+entity NBSystem {
+    
+    field bodies:List<Body>;
+
+    field pos:Vector3;
+
+    method advance(dt: Float64, iter: List<Int>): List<Body> {
+       
+    
+    let itr = iter.map<List<Body>>(fn(x) => {
+
+        let nbodies = this.bodies.map<Body>(fn(b) => {
+        
+            let abodies = this.bodies.join<Body>(this.bodies, fn(b1, b2) => b1.name != b2.name);
+            //_debug(abodies);
+            let deltas = abodies.map<Vector3>(fn(bb) => {
+                let dist = Vector3::distance(bb.0.pos, bb.1.pos);
+                let mag = dt / Float64::pow(dist, 3f);
+                return (bb.0.pos.sub(bb.1.pos)).scale(bb.0.m * mag);
+            });
+            //let nvel = this.bodies.map<Vector3>(fn(x) => x.vel.add(Vector3::sum(deltas)));
+            //let npos = this.bodies.map<Any>(fn(x) => nvel.map<Any>(fn(n) => x.pos.add(n.scale(dt))));
+
+            let nvel = b.vel.add(Vector3::sum(deltas));
+            let npos = b.pos.add(nvel.scale(dt));
+            //_debug(npos);
+            return Body@{ name=b.name, x=b.x, y=b.y, z=b.z, vx=b.vx, vy=b.vy, vz=b.vz, m=b.m, mass=b.mass, pos=npos, vel=nvel };
+        
+        });
+        /*
+        let dist1 = Vector3::distance(this.bodies.get(0).pos,this.bodies.get(1).pos);
+        let mag1 = dt / Float64::pow(dist1, 3f);    
+        let vec1 = this.bodies.get(0).pos.sub(this.bodies.get(1).pos).scale(this.bodies.get(0).mass * mag1);*/
+        /*
+        let nbodies = this.bodies.map<Body>(fn(b) => {
+         
+         let deltas = this.bodies
+            .filter(fn(bb) => bb.name != b.name)
+            .map<Vector3>(fn(bb) => {
+               let dist = Vector3::distance(b.pos, bb.pos);
+               let mag = dt / Float64::pow(dist, 3f);
+
+               return (bb.pos.sub(b.pos)).scale(bb.mass * mag);
+            });
+
+         let nvel = b.vel.add(Vector3::sum(deltas));
+         let npos = b.pos.add(nvel.scale(dt));
+
+         return b;
+      });*/
+
+        //return x;
+    //});
+    
+    //var advec: Vector3 = Vector3@{x=0.0f,y=0.0f,z=0.0f};
+    
+    //let steps2 = NSIterate::steps<Int>(0,(this.bodies.size() - 1),fn(z) =>
+        //{
+          //  var counter = z;
+
+            //_debug(counter);
+            /*
+            counter = counter.update(z = Vector3@{x = this.bodies.get(counter.i).vx, y = this.bodies.get(counter.i).vy, z = this.bodies.get(counter.i).vz});
+            */
+            
+            //var ps = this.update(pos=Vector3@{x = this.bodies.get(counter).vx, y = this.bodies.get(counter).vy, z = this.bodies.get(counter).vz});
+            
+            //let steps3 = NSIterate::steps<Int>(0,this.bodies.size(),fn(w) =>
+            //{ 
+                //let b = w + 1;
+
+                //var zev = w + 1;
+
+                
+                //let dx = this.bodies.get(counter).x - this.bodies.get(zev).x;
+                
+                
+                //let dy = this.bodies.get(counter).y - this.bodies.get(zev).y;
+                
+                //let dz = this.bodies.get(counter).z - this.bodies.get(zev).z;
+
+                
+                //let dsq = (dx.square() + dy.square() + dz.square()).sqrt();
+
+                
+                //let mag = dt / Float64::pow(dsq, 3f);
+                
+                
+                //let zz = this.update(pos=Vector3@{x=this.pos.x - dx * this.bodies.get(zev).m * mag,y=this.pos.y - dy * this.bodies.get(zev).m * mag,z=this.pos.z - dz * this.bodies.get(zev).m * mag});
+
+                /*
+                let new = Body@{
+                            x=this.bodies.get(zev.i).x,
+                            y=this.bodies.get(zev.i).y,
+                            z=this.bodies.get(zev.i).z,
+                            vx=this.bodies.get(zev.i).vx + dx * this.bodies.get(zev.i).m * mag,
+                            vy=this.bodies.get(zev.i).vy + dx * this.bodies.get(zev.i).m * mag,
+                            vz=this.bodies.get(zev.i).vz + dx * this.bodies.get(zev.i).m * mag,
+                            m=this.bodies.get(zev.i).m
+                        };
+
+                if(zev.i == 0)
+                {
+                    zev = zev.update(b=List<Body>@{
+                        new,
+                        this.bodies.get(1),
+                        this.bodies.get(2),
+                        this.bodies.get(3),
+                        this.bodies.get(4)
+                    });
+
+                    //_debug("first");
+                }
+                elif(zev.i == 1)
+                {
+                    zev = zev.update(b=List<Body>@{
+                        this.bodies.get(0),
+                        new,
+                        this.bodies.get(2),
+                        this.bodies.get(3),
+                        this.bodies.get(4)
+                    });
+
+                    //_debug("second");
+                }
+                elif(zev.i == 2)
+                {
+                    zev = zev.update(b=List<Body>@{
+                        this.bodies.get(0),
+                        this.bodies.get(1),
+                        new,
+                        this.bodies.get(3),
+                        this.bodies.get(4)
+                    });
+
+                    //_debug("third");
+                }
+                elif(zev.i == 3)
+                {
+                    zev = zev.update(b=List<Body>@{
+                        this.bodies.get(0),
+                        this.bodies.get(1),
+                        this.bodies.get(2),
+                        new,
+                        this.bodies.get(4)
+                    });
+
+                    //_debug("fourth");
+                }
+                else
+                {
+                    zev = zev.update(b=List<Body>@{
+                        this.bodies.get(0),
+                        this.bodies.get(1),
+                        this.bodies.get(2),
+                        this.bodies.get(3),
+                        new
+                    });
+
+                    //_debug("fifth");
+                }*/
+                
+                //_debug(zev);
+                
+                //return w;
+            //});
+
+            //_debug(steps3);
+            
+            /*
+            let new = Body@{
+                            x=this.bodies.get(counter.i).x,
+                            y=this.bodies.get(counter.i).y,
+                            z=this.bodies.get(counter.i).z,
+                            vx=steps3.z.x,
+                            vy=steps3.z.y,
+                            vz=steps3.z.z,
+                            m=this.bodies.get(counter.i).m
+                        };
+
+            
+            
+            if(counter.i == 0)
+                {
+                    counter = counter.update(b=List<Body>@{
+                        new,
+                        this.bodies.get(1),
+                        this.bodies.get(2),
+                        this.bodies.get(3),
+                        this.bodies.get(4)
+                    });
+
+                    //_debug("first");
+                }
+                elif(counter.i == 1)
+                {
+                    counter = counter.update(b=List<Body>@{
+                        this.bodies.get(0),
+                        new,
+                        this.bodies.get(2),
+                        this.bodies.get(3),
+                        this.bodies.get(4)
+                    });
+
+                    //_debug("second");
+                }
+                elif(counter.i == 2)
+                {
+                    counter = counter.update(b=List<Body>@{
+                        this.bodies.get(0),
+                        this.bodies.get(1),
+                        new,
+                        this.bodies.get(3),
+                        this.bodies.get(4)
+                    });
+
+                    //_debug("third");
+                }
+                elif(counter.i == 3)
+                {
+                    counter = counter.update(b=List<Body>@{
+                        this.bodies.get(0),
+                        this.bodies.get(1),
+                        this.bodies.get(2),
+                        new,
+                        this.bodies.get(4)
+                    });
+
+                    //_debug("fourth");
+                }
+                else
+                {
+                    counter = counter.update(b=List<Body>@{
+                        this.bodies.get(0),
+                        this.bodies.get(1),
+                        this.bodies.get(2),
+                        this.bodies.get(3),
+                        new
+                    });
+
+                    //_debug("fifth");
+                }
+            */
+            
+            //counter = counter + 1;
+            
+            //return z;
+        //});
+
+        /*
+        let steps4 = NSIterate::steps<{z: Vector3, i: Int, b: List<Body>}>({z=steps2.z,i=0,b=steps2.b},(this.bodies.size()),fn(z) =>
+        {
+            var counter2 = z;
+
+            let new = Body@{
+                            x=this.bodies.get(counter2.i).x + dt * this.bodies.get(counter2.i).vx,
+                            y=this.bodies.get(counter2.i).y + dt * this.bodies.get(counter2.i).vy,
+                            z=this.bodies.get(counter2.i).z + dt * this.bodies.get(counter2.i).vz,
+                            vx=this.bodies.get(counter2.i).vx,
+                            vy=this.bodies.get(counter2.i).vy,
+                            vz=this.bodies.get(counter2.i).vz,
+                            m=this.bodies.get(counter2.i).m
+                        };
+   
+            if(counter2.i == 0)
+                {
+                    counter2 = counter2.update(b=List<Body>@{
+                        new,
+                        this.bodies.get(1),
+                        this.bodies.get(2),
+                        this.bodies.get(3),
+                        this.bodies.get(4)
+                    });
+
+                    //_debug("first");
+                }
+                elif(counter2.i == 1)
+                {
+                    counter2 = counter2.update(b=List<Body>@{
+                        this.bodies.get(0),
+                        new,
+                        this.bodies.get(2),
+                        this.bodies.get(3),
+                        this.bodies.get(4)
+                    });
+
+                    //_debug("second");
+                }
+                elif(counter2.i == 2)
+                {
+                    counter2 = counter2.update(b=List<Body>@{
+                        this.bodies.get(0),
+                        this.bodies.get(1),
+                        new,
+                        this.bodies.get(3),
+                        this.bodies.get(4)
+                    });
+
+                    //_debug("third");
+                }
+                elif(counter2.i == 3)
+                {
+                    counter2 = counter2.update(b=List<Body>@{
+                        this.bodies.get(0),
+                        this.bodies.get(1),
+                        this.bodies.get(2),
+                        new,
+                        this.bodies.get(4)
+                    });
+
+                    //_debug("fourth");
+                }
+                else
+                {
+                    counter2 = counter2.update(b=List<Body>@{
+                        this.bodies.get(0),
+                        this.bodies.get(1),
+                        this.bodies.get(2),
+                        this.bodies.get(3),
+                        new
+                    });
+
+                    //_debug("fifth");
+                }
+
+            counter2 = counter2.update(i = counter2.i + 1);
+
+            return counter2;
+        });
+        */
+        if(x == iter.size() - 1)
+        {
+            return nbodies;
+        }
+
+        return List<Body>@{};
+    });
+    //_debug(steps2);
+
+        //var bods = this.update(bodies=this.bodies);
+
+        return itr.back();
+    
+    }
+}
+
+struct entity Vector3 {
+   field x: Float64;
+   field y: Float64;
+   field z: Float64;
+
+   const zero: Vector3 = Vector3@{0.0f, 0.0f, 0.0f};
+
+   method add(v: Vector3): Vector3 {
+      return Vector3@{this.x + v.x, this.y + v.y, this.z + v.z};
+   }
+
+   method sub(v: Vector3): Vector3 {
+      return Vector3@{this.x - v.x, this.y - v.y, this.z - v.z};
+   } 
+
+   static sum(l: List<Vector3>): Vector3 {
+      return NSIterate::reduce<Vector3>(Vector3::zero, l, fn(a, b) => a.add(b), true);
+   }
+
+   method scale(s: Float64): Vector3 {
+      return Vector3@{this.x * s, this.y * s, this.z * s};
+   }
+
+   method magnitude(): Float64 {
+      return (this.x.square() + this.y.square() + this.z.square()).sqrt();
+   }
+
+   static distance(v1: Vector3, v2: Vector3): Float64 {
+      return ((v1.x - v2.x).square() + (v1.y - v2.y).square() + (v1.z - v2.z).square()).sqrt();
+   }
+}
+
+struct entity Body {
+    
+    field name: String;
+    field x: Float64;
+    field y: Float64;
+    field z: Float64;
+    field vx: Float64;
+    field vy: Float64;
+    field vz: Float64;
+    field m: Float64;
+    field mass: Float64;
+    field pos: Vector3;
+    field vel: Vector3;
+}
+
+function energy(bodies: List<Body>): Float64 {
+
+
+    var evalue = 0.0f;
+    
+    let stepsnrg = NSIterate::steps<{i: Int, e: Float64}>(makeValue<{i: Int, e: Float64}>({i=0,e=evalue}),bodies.size() - 1,fn(z) =>
+        {
+            var s = z;
+
+            s = s.update(e=s.e + 0.5f * bodies.get(s.i).m * (bodies.get(s.i).vx.square() + bodies.get(s.i).vy.square() + bodies.get(s.i).vz.square()));
+
+            _debug(s.e);
+            
+            let stepsnrg2 = NSIterate::steps<{i: Int, e: Float64}>(makeValue<{i: Int, e: Float64}>({i=s.i + 1,e=s.e}),bodies.size() - 1,fn(z) =>
+            {
+                //var bi = { x=0.0f, y=0.0f, z=0.0f, vx=0.0f, vy=0.0f, vz=0.0f, m=0.0f };
+
+                var zz = z;
+
+                if(zz.i != s.i) 
+                {
+                    //bi = bi.update(x=z.b.get(z.i).x,y=z.b.get(z.i).y,z=z.b.get(z.i).z,vx=z.b.get(z.i).vx,vy=z.b.get(z.i).vy,vz=z.b.get(z.i).vz,m=z.b.get(z.i).m);
+
+                    
+
+                    let dist = ((bodies.get(s.i).x - bodies.get(z.i).x).square() + (bodies.get(s.i).y - bodies.get(z.i).y).square() + (bodies.get(s.i).z - bodies.get(z.i).z).square()).sqrt();
+
+                    zz = zz.update(e=zz.e - ((bodies.get(s.i).m * bodies.get(z.i).m) / dist));
+
+                    _debug(zz.e);
+
+                    return zz;
+                }
+                
+                return z;
+            });
+
+            s = s.update(e=stepsnrg2.e);
+            s = s.update(i=s.i + 1);
+
+            return s;
+        });
+
+    return stepsnrg.e;
+}
+
+function add2(x: Int, y: Int): Int {
+    return x + y;
+}
+
+entrypoint function main(): Any {
+    
+    let pi: Float64 = 3.141592653589793f;
+    let solar_mass: Float64 = 4.0f * pi * pi;
+    let days_per_year: Float64 = 365.24f;
+
+    let jupiter = Body@{
+        name="jupiter",
+        x=4.84143144246472090e+00f,
+        y=-1.16032004402742839e+00f,
+        z=-1.03622044471123109e-01f,
+        vx=1.66007664274403694e-03f * days_per_year,
+        vy=7.69901118419740425e-03f * days_per_year,
+        vz=-6.90460016972063023e-05f * days_per_year,
+        m=9.54791938424326609e-04f * solar_mass,
+        mass=9.54791938424326609e-04f * solar_mass,
+        pos=Vector3@{4.84143144246472090e+00f, -1.16032004402742839e+00f, -1.03622044471123109e-01f},
+        vel=Vector3@{1.66007664274403694e-03f * days_per_year, 7.69901118419740425e-03f * days_per_year, 6.90460016972063023e-05f * days_per_year}
+    };
+
+    let uranus = Body@{
+        name="uranus",
+        x=1.28943695621391310e+01f,
+        y=-1.51111514016986312e+01f,
+        z=-2.23307578892655734e-01f,
+        vx=2.96460137564761618e-03f * days_per_year,
+        vy=2.37847173959480950e-03f * days_per_year,
+        vz=-2.96589568540237556e-05f * days_per_year,
+        m=4.36624404335156298e-05f * solar_mass,
+        mass=4.36624404335156298e-05f * solar_mass,
+        pos=Vector3@{1.28943695621391310e+01f, -1.51111514016986312e+01f, -2.23307578892655734e-01f},
+        vel=Vector3@{2.96460137564761618e-03f * days_per_year, 2.37847173959480950e-03f * days_per_year, -2.96589568540237556e-05f * days_per_year}
+    };
+
+    let neptune = Body@{
+        name="neptune",
+        x=1.53796971148509165e+01f,
+        y=-2.59193146099879641e+01f,
+        z=1.79258772950371181e-01f,
+        vx=2.68067772490389322e-03f * days_per_year,
+        vy=1.62824170038242295e-03f * days_per_year,
+        vz=-9.51592254519715870e-05f * days_per_year,
+        m=5.15138902046611451e-05f * solar_mass,
+        mass=5.15138902046611451e-05f * solar_mass,
+        pos=Vector3@{1.53796971148509165e+01f, -2.59193146099879641e+01f, 1.79258772950371181e-01f},
+        vel=Vector3@{2.68067772490389322e-03f * days_per_year, 1.62824170038242295e-03f * days_per_year, -9.51592254519715870e-05f * days_per_year} 
+    };
+
+    let saturn = Body@{
+        name="saturn",
+        x=8.34336671824457987e+00f,
+        y=4.12479856412430479e+00f,
+        z=4.03523417114321381e-01f,
+        vx=-2.76742510726862411e-03f * days_per_year,
+        vy=4.99852801234917238e-03f * days_per_year,
+        vz=2.30417297573763929e-05f * days_per_year,
+        m=2.85885980666130812e-04f * solar_mass,
+        mass=2.85885980666130812e-04f * solar_mass,
+        pos=Vector3@{8.34336671824457987e+00f, 4.12479856412430479e+00f, 4.03523417114321381e-01f},
+        vel=Vector3@{-2.76742510726862411e-03f * days_per_year, 4.99852801234917238e-03f * days_per_year, 2.30417297573763929e-05f * days_per_year}
+    };
+
+    var system = NBSystem@{bodies=List<Body>@{jupiter, saturn, uranus, neptune},pos=Vector3@{x=0.0f,y=0.0f,z=0.0f}};
+    
+    //var bodies = List<Body>@{jupiter, saturn, uranus, neptune};
+
+    //system = system.update(bodies=initSun(system.bodies));
+
+    //let steps2 = 0;
+
+    //var advec: Vector3 = Vector3@{x=0.0f,y=0.0f,z=0.0f};
+
+    var e: Float64 = energy(system.bodies);
+
+    _debug(e);
+    
+    //let rsystem = NSIterate::steps<Int>(0, 50000000, fn(x) => system.advance(0.01f));
+
+    var y = system.advance(0.01f,ListOf::range(0, 500));
+    _debug(y);
+    
+    //var ll = List<Int>::fill(50000000, fn(x) => x + 5);
+
+    //let l = List<Int>::fill(50000000, fn(x: Int) => x + 1);
+
+    /*
+    let ll = l.map<Int>(fn(x) => {
+
+        var ssb = system.advance(0.01f);
+        
+        return x;
+    });*/
+    
+    /*
+    var steps2 = NSIterate::steps<Int>(0,50000000,fn(z) =>
+    {
+            //var nb = z;
+            //var ssb = system.advance(0.01f);
+
+            //system.bodies = system.bodies.advance();
+            //nb = nb.update(bodies=z.advance());
+                    
+            return z;
+    });*/
+    
+    //_debug(l);
+    
+    e = energy(y);
+
+    _debug(e);
+    
+    /*
+    let kineticEnergies = bodies.map<Float64>(fn(b) => {
+         let vs = (b.vx.square() + b.vy.square() + b.vz.square());
+         return 0.5f * b.m * vs;
+      });*/
+
+    
+    /*
+    let steps1 = NSIterate::steps<Int>(0,(length - 1),fn(i) => {
+        
+        let body = bodies.get(i);
+
+        let ivx = body.vx;
+        let ivy = body.vy;
+        let ivz = body.vz;
+
+        
+        let steps2 = NSIterate::steps<Int>(0,(length),fn(z) =>
+        {
+            let a = z + 1;
+
+            //let body2 = bodies.get(a);
+
+
+
+            return a;
+        });
+
+
+
+        _debug(bodies.get(i));
+
+        let y = i + 1;
+        return y;
+    });*/
+
+    return "Finished";
+
+}

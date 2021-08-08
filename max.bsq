@@ -1,0 +1,6 @@
+namespace NSMain;
+
+entrypoint function main(x: Int, y: Int): Int {
+    return (x > y) ? x : y;
+}
+
