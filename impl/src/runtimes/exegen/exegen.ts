@@ -127,89 +127,109 @@ setImmediate((): void => {
             process.exit(1);
         }
 
+        const mainheader = "namespace BSQ\n"
+        + "{\n"
+        + cparams.STATIC_STRING_CREATE
+        + "\n"
+        + "std::string diagnostic_format(Value v)\n"
+        + "{\n"
+        + "    if(BSQ_IS_VALUE_NONE(v))\n"
+        + "    {\n"
+        + "        return std::string(\"none\");\n"
+        + "    }\n"
+        + "    else if(BSQ_IS_VALUE_BOOL(v))\n"
+        + "    {\n"
+        + "        return BSQ_GET_VALUE_BOOL(v) ? std::string(\"true\") : std::string(\"false\");\n"
+        + "    }\n"
+        + "    else if(BSQ_IS_VALUE_TAGGED_INT(v))\n"
+        + "    {\n"
+        + "        return std::to_string(BSQ_GET_VALUE_TAGGED_INT(v));\n"
+        + "    }\n"
+        + "    else\n"
+        + "    {\n"
+        + "        BSQRef* vv = BSQ_GET_VALUE_PTR(v, BSQRef);\n"
+        + "\n"        
+        + "        auto rcategory = GET_MIR_TYPE_CATEGORY(vv->nominalType);\n"
+        + "        switch(rcategory)\n"
+        + "        {\n"
+        + "            case MIRNominalTypeEnum_Category_BigInt:\n"
+        + "               return DisplayFunctor_BSQBigInt{}(dynamic_cast<BSQBigInt*>(vv));\n"
+        + "            case MIRNominalTypeEnum_Category_String:\n"
+        + "               return DisplayFunctor_BSQString{}(dynamic_cast<BSQString*>(vv));\n"
+        + "            case MIRNominalTypeEnum_Category_SafeString:\n"
+        + "               return DisplayFunctor_BSQSafeString{}(dynamic_cast<BSQSafeString*>(vv));\n"
+        + "            case MIRNominalTypeEnum_Category_StringOf:\n"
+        + "               return DisplayFunctor_BSQStringOf{}(dynamic_cast<BSQStringOf*>(vv));\n"
+        + "            case MIRNominalTypeEnum_Category_UUID:\n"
+        + "               return DisplayFunctor_BSQUUID{}(dynamic_cast<Boxed_BSQUUID*>(vv)->bval);\n"
+        + "            case MIRNominalTypeEnum_Category_LogicalTime:\n"
+        + "               return DisplayFunctor_BSQLogicalTime{}(dynamic_cast<Boxed_BSQLogicalTime*>(vv)->bval);\n"
+        + "            case MIRNominalTypeEnum_Category_CryptoHash:\n"
+        + "               return DisplayFunctor_BSQCryptoHash{}(dynamic_cast<BSQCryptoHash*>(vv));\n"
+        + "            case MIRNominalTypeEnum_Category_Enum:\n"
+        + "               return DisplayFunctor_BSQEnum{}(dynamic_cast<Boxed_BSQEnum*>(vv)->bval);\n"
+        + "            case MIRNominalTypeEnum_Category_IdKeySimple:\n"
+        + "               return DisplayFunctor_BSQIdKeySimple{}(dynamic_cast<Boxed_BSQIdKeySimple*>(vv)->bval);\n"
+        + "            case MIRNominalTypeEnum_Category_IdKeyCompound:\n"
+        + "               return DisplayFunctor_BSQIdKeyCompound{}(dynamic_cast<Boxed_BSQIdKeyCompound*>(vv)->bval);\n"
+        + "            case MIRNominalTypeEnum_Category_Float64:\n"
+        + "               return DisplayFunctor_double{}(dynamic_cast<Boxed_double*>(vv)->bval);\n"
+        + "            case MIRNominalTypeEnum_Category_ByteBuffer:\n"
+        + "               return DisplayFunctor_BSQByteBuffer{}(dynamic_cast<BSQByteBuffer*>(vv));\n"
+        + "            case MIRNominalTypeEnum_Category_Buffer:\n"
+        + "               return DisplayFunctor_BSQBuffer{}(dynamic_cast<BSQBuffer*>(vv));\n"
+        + "            case MIRNominalTypeEnum_Category_BufferOf:\n"
+        + "               return DisplayFunctor_BSQBufferOf{}(dynamic_cast<BSQBufferOf*>(vv));\n"
+        + "            case MIRNominalTypeEnum_Category_ISOTime:\n"
+        + "               return DisplayFunctor_BSQISOTime{}(dynamic_cast<Boxed_BSQISOTime*>(vv)->bval);\n"
+        + "            case MIRNominalTypeEnum_Category_Regex:\n"
+        + "               return DisplayFunctor_BSQRegex{}(dynamic_cast<Boxed_BSQRegex*>(vv)->bval);\n"
+        + "            case MIRNominalTypeEnum_Category_Tuple:\n"
+        + "               return DisplayFunctor_BSQTuple{}(*dynamic_cast<BSQTuple*>(vv));\n"
+        + "            case MIRNominalTypeEnum_Category_Record:\n"
+        + "               return DisplayFunctor_BSQRecord{}(*dynamic_cast<BSQRecord*>(vv));\n"
+        + "            default:\n"
+        + "               return dynamic_cast<BSQObject*>(vv)->display();\n"
+        + "         }\n"
+        + "     }\n"
+        + "}\n"
+        + "/*forward type decls*/\n"
+        + cparams.TYPEDECLS_FWD
+        + "\n\n/*type decls*/\n"
+        + cparams.TYPEDECLS
+        + "\n\n/*ephemeral decls*/\n"
+        + cparams.EPHEMERAL_LIST_DECLARE
+        + "\n\n/*forward vable decls*/\n"
+        + "\n\n/*forward function decls*/\n"
+        + cparams.FUNC_DECLS_FWD
+        + "\n\n/*typecheck decls*/\n"
+        + cparams.TYPECHECKS
+        + "\n\n/*vable decls*/\n"
+        + cparams.VFIELD_ACCESS
+        + "\n\n/*function decls*/\n"
+        + cparams.FUNC_DECLS
+        + "}\n\n"
+
+        process.stdout.write(`Searching files for runtime:\n`)
+        
+        const runtime = linked.map((fname) => 
+        {
+            
+            process.stdout.write(fname.file+`\n`);
+
+            if(fname.file == "bsqruntime.h")
+            {
+                process.stdout.write(`Found Runtime\n`);
+                //process.stdout.write(fname.contents+`\n`);
+                return fname.contents;
+            }
+            
+            return "";
+        });
+
+        linked.push({ file: "bsqruntime.h", contents: runtime.join('') + "\n" + mainheader });
+
         const maincpp = "#include \"bsqruntime.h\"\n"
-            + "namespace BSQ\n"
-            + "{\n"
-            + cparams.STATIC_STRING_CREATE
-            + "\n"
-            + "std::string diagnostic_format(Value v)\n"
-            + "{\n"
-            + "    if(BSQ_IS_VALUE_NONE(v))\n"
-            + "    {\n"
-            + "        return std::string(\"none\");\n"
-            + "    }\n"
-            + "    else if(BSQ_IS_VALUE_BOOL(v))\n"
-            + "    {\n"
-            + "        return BSQ_GET_VALUE_BOOL(v) ? std::string(\"true\") : std::string(\"false\");\n"
-            + "    }\n"
-            + "    else if(BSQ_IS_VALUE_TAGGED_INT(v))\n"
-            + "    {\n"
-            + "        return std::to_string(BSQ_GET_VALUE_TAGGED_INT(v));\n"
-            + "    }\n"
-            + "    else\n"
-            + "    {\n"
-            + "        BSQRef* vv = BSQ_GET_VALUE_PTR(v, BSQRef);\n"
-            + "\n"        
-            + "        auto rcategory = GET_MIR_TYPE_CATEGORY(vv->nominalType);\n"
-            + "        switch(rcategory)\n"
-            + "        {\n"
-            + "            case MIRNominalTypeEnum_Category_BigInt:\n"
-            + "               return DisplayFunctor_BSQBigInt{}(dynamic_cast<BSQBigInt*>(vv));\n"
-            + "            case MIRNominalTypeEnum_Category_String:\n"
-            + "               return DisplayFunctor_BSQString{}(dynamic_cast<BSQString*>(vv));\n"
-            + "            case MIRNominalTypeEnum_Category_SafeString:\n"
-            + "               return DisplayFunctor_BSQSafeString{}(dynamic_cast<BSQSafeString*>(vv));\n"
-            + "            case MIRNominalTypeEnum_Category_StringOf:\n"
-            + "               return DisplayFunctor_BSQStringOf{}(dynamic_cast<BSQStringOf*>(vv));\n"
-            + "            case MIRNominalTypeEnum_Category_UUID:\n"
-            + "               return DisplayFunctor_BSQUUID{}(dynamic_cast<Boxed_BSQUUID*>(vv)->bval);\n"
-            + "            case MIRNominalTypeEnum_Category_LogicalTime:\n"
-            + "               return DisplayFunctor_BSQLogicalTime{}(dynamic_cast<Boxed_BSQLogicalTime*>(vv)->bval);\n"
-            + "            case MIRNominalTypeEnum_Category_CryptoHash:\n"
-            + "               return DisplayFunctor_BSQCryptoHash{}(dynamic_cast<BSQCryptoHash*>(vv));\n"
-            + "            case MIRNominalTypeEnum_Category_Enum:\n"
-            + "               return DisplayFunctor_BSQEnum{}(dynamic_cast<Boxed_BSQEnum*>(vv)->bval);\n"
-            + "            case MIRNominalTypeEnum_Category_IdKeySimple:\n"
-            + "               return DisplayFunctor_BSQIdKeySimple{}(dynamic_cast<Boxed_BSQIdKeySimple*>(vv)->bval);\n"
-            + "            case MIRNominalTypeEnum_Category_IdKeyCompound:\n"
-            + "               return DisplayFunctor_BSQIdKeyCompound{}(dynamic_cast<Boxed_BSQIdKeyCompound*>(vv)->bval);\n"
-            + "            case MIRNominalTypeEnum_Category_Float64:\n"
-            + "               return DisplayFunctor_double{}(dynamic_cast<Boxed_double*>(vv)->bval);\n"
-            + "            case MIRNominalTypeEnum_Category_ByteBuffer:\n"
-            + "               return DisplayFunctor_BSQByteBuffer{}(dynamic_cast<BSQByteBuffer*>(vv));\n"
-            + "            case MIRNominalTypeEnum_Category_Buffer:\n"
-            + "               return DisplayFunctor_BSQBuffer{}(dynamic_cast<BSQBuffer*>(vv));\n"
-            + "            case MIRNominalTypeEnum_Category_BufferOf:\n"
-            + "               return DisplayFunctor_BSQBufferOf{}(dynamic_cast<BSQBufferOf*>(vv));\n"
-            + "            case MIRNominalTypeEnum_Category_ISOTime:\n"
-            + "               return DisplayFunctor_BSQISOTime{}(dynamic_cast<Boxed_BSQISOTime*>(vv)->bval);\n"
-            + "            case MIRNominalTypeEnum_Category_Regex:\n"
-            + "               return DisplayFunctor_BSQRegex{}(dynamic_cast<Boxed_BSQRegex*>(vv)->bval);\n"
-            + "            case MIRNominalTypeEnum_Category_Tuple:\n"
-            + "               return DisplayFunctor_BSQTuple{}(*dynamic_cast<BSQTuple*>(vv));\n"
-            + "            case MIRNominalTypeEnum_Category_Record:\n"
-            + "               return DisplayFunctor_BSQRecord{}(*dynamic_cast<BSQRecord*>(vv));\n"
-            + "            default:\n"
-            + "               return dynamic_cast<BSQObject*>(vv)->display();\n"
-            + "         }\n"
-            + "     }\n"
-            + "}\n"
-            + "/*forward type decls*/\n"
-            + cparams.TYPEDECLS_FWD
-            + "\n\n/*type decls*/\n"
-            + cparams.TYPEDECLS
-            + "\n\n/*ephemeral decls*/\n"
-            + cparams.EPHEMERAL_LIST_DECLARE
-            + "\n\n/*forward vable decls*/\n"
-            + "\n\n/*forward function decls*/\n"
-            + cparams.FUNC_DECLS_FWD
-            + "\n\n/*typecheck decls*/\n"
-            + cparams.TYPECHECKS
-            + "\n\n/*vable decls*/\n"
-            + cparams.VFIELD_ACCESS
-            + "\n\n/*function decls*/\n"
-            + cparams.FUNC_DECLS
-            + "}\n\n"
             + "using namespace BSQ;"
             + "\n\n/*main decl*/\n"
             + cparams.MAIN_CALL
