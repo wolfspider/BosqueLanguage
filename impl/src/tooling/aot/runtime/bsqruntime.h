@@ -2,7 +2,8 @@
 // Copyright (C) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE.txt file in the project root for full license information.
 //-------------------------------------------------------------------------------------------------------
-
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-parameter"
 #include "common.h"
 #include "bsqvalue.h"
 #include "bsqkeyvalues.h"
@@ -15,7 +16,7 @@
 #include "bsqcustom/bsqset_ops.h"
 #include "bsqcustom/bsqmap_decl.h"
 #include "bsqcustom/bsqmap_ops.h"
-
+#pragma clang diagnostic pop
 #pragma once
 
 #define GET_RC_OPS(TAG) (bsq_ops[GET_MIR_TYPE_POSITION(TAG)])

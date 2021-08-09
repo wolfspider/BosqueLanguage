@@ -20,6 +20,7 @@ import chalk from "chalk";
 
 const scratchroot = Path.normalize(Path.join(__dirname, "../../scratch/"));
 const binroot = Path.normalize(Path.join(__dirname, "../../"));
+const tapedeckroot = Path.normalize(Path.join(__dirname, "../../../../../../bsq/"));
 const ext = process.platform == "win32" ? "exe" : "";
 
 function generateMASM(files: string[], blevel: "debug" | "test" | "release", corelibpath: string): MIRAssembly {
@@ -129,6 +130,8 @@ setImmediate((): void => {
 
         const mainheader = "namespace BSQ\n"
         + "{\n"
+        + "#pragma clang diagnostic push\n"
+        + `#pragma clang diagnostic ignored \"-Wunused-parameter\"\n`
         + cparams.STATIC_STRING_CREATE
         + "\n"
         + "std::string diagnostic_format(Value v)\n"
@@ -208,6 +211,7 @@ setImmediate((): void => {
         + cparams.VFIELD_ACCESS
         + "\n\n/*function decls*/\n"
         + cparams.FUNC_DECLS
+        + "#pragma clang diagnostic pop\n"
         + "}\n\n"
 
         process.stdout.write(`Searching files for runtime:\n`)
@@ -277,7 +281,59 @@ setImmediate((): void => {
         process.stdout.write(`Executing C++ code with ${buildstring} ${cpppath}/bsq.cpp\n`);
         
         execSync(`${program.compiler} -std=c++17 ${cpppath}/bsq.cpp`,{stdio: 'inherit'});
-    }
+
+        const mainrs = "#![recursion_limit = \"4096\"]\n"
+        + "\n"
+        + "use cpp::*;\n"
+        + "\n"
+        + "cpp! {{\n"
+        + "#include <iostream>\n"
+        + "#include \"bsqruntime.h\"\n"
+        + "}}\n"
+        + "pub fn bsq() {\n"
+        + "let name = std::ffi::CString::new(\"BSQ Finished Executing\").unwrap();\n"
+        + "let name_ptr = name.as_ptr();\n"
+        + "let r = unsafe {\n"
+        + "cpp!([name_ptr as \"const char *\"] -> u32 as \"int32_t\" {\n"
+        + "\n"
+        + "    using namespace BSQ;"
+        + "\n\n/*main decl*/\n"
+        + "    " + cparams.MAIN_CALLRS
+        + "    })\n"
+        + "};\n"
+        + "assert_eq!(r, 0);\n"
+        + "}\n"
+        linked.push({ file: "lib.rs", contents: mainrs });
+
+        process.stdout.write(`Writing TapeDeck files...\n`);
+        const rspath = Path.join(tapedeckroot, "src");
+        FS.mkdirSync(rspath, { recursive: true });
+
+        linked.forEach((fp) => {
+            const outfile = Path.join(rspath, fp.file);
+            if(fp.file !== "bsq.cpp")
+            {
+                FS.writeFileSync(outfile, fp.contents);
+            }
+        });
+
+        const customsrcrs = Path.join(cpp_runtime, "bsqcustom")
+        const custompathrs = Path.join(rspath, "bsqcustom");
+        FS.mkdirSync(custompathrs, { recursive: true });
+        const srcrs = FS.readdirSync(customsrcrs).filter((name) => name.endsWith(".h"));
+
+        srcrs.forEach((cf) => {
+            const fromfile = Path.join(customsrcrs, cf);
+            const outfile = Path.join(custompathrs, cf);
+
+            const contents = FS.readFileSync(fromfile).toString();
+            FS.writeFileSync(outfile, contents);
+        });
+
+        execSync("cargo run -p tapedeck",{stdio: 'inherit'});
+
+
+    }   
     catch (ex) {
         process.stderr.write(chalk.red(`Error -- ${ex}\n`));
     }

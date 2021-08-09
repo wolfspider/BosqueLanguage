@@ -9,7 +9,8 @@
 
 namespace BSQ
 {
-
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wsign-compare"
 template <typename Ty, typename T, typename RCIncF, typename RCDecF, typename DisplayF>
 class BSQListOps
 {
@@ -600,5 +601,5 @@ public:
         return BSQ_NEW_NO_RC(RType, ntype, move(entries));
     }
 };
-
+#pragma clang diagnostic pop;
 }

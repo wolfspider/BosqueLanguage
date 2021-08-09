@@ -39,7 +39,8 @@ type CPPCode = {
     FUNC_DECLS_FWD: string,
     FUNC_DECLS: string,
 
-    MAIN_CALL: string
+    MAIN_CALL: string,
+    MAIN_CALLRS: string
 };
 
 function getDepFromType(root: MIRType, tt: MIRType, typeemitter: CPPTypeEmitter, deps: Set<string>) {
@@ -357,6 +358,8 @@ class CPPEmitter {
 
         const maincall = `${mainsig} {\n\n${convargs.join("\n")}\n\n  try {\n    ${scopev}\n    ${fcall};\n    fflush(stdout);\n    return 0;\n  } catch (BSQAbort& abrt) HANDLE_BSQ_ABORT(abrt) \n}\n`;
 
+        const maincallrs = `try {\n    ${scopev}\n    ${fcall};\n    std::cout << name_ptr << std::endl;\n    fflush(stdout);\n    return 0;\n  } catch (BSQAbort& abrt) HANDLE_BSQ_ABORT(abrt);\n`;
+
         return {
             STATIC_STRING_DECLARE: conststring_declare.sort().join("\n  "),
             STATIC_STRING_CREATE: conststring_create.sort().join("\n  "),
@@ -388,7 +391,9 @@ class CPPEmitter {
             FUNC_DECLS_FWD: funcdecls_fwd.join("\n"),
             FUNC_DECLS: funcdecls.join("\n"),
 
-            MAIN_CALL: maincall
+            MAIN_CALL: maincall,
+
+            MAIN_CALLRS: maincallrs
         };
     }
 }
