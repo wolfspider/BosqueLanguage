@@ -132,6 +132,7 @@ setImmediate((): void => {
         + "{\n"
         + "#pragma clang diagnostic push\n"
         + `#pragma clang diagnostic ignored \"-Wunused-parameter\"\n`
+        + `#pragma clang diagnostic ignored \"-Wpessimizing-move\"\n`
         + cparams.STATIC_STRING_CREATE
         + "\n"
         + "std::string diagnostic_format(Value v)\n"
