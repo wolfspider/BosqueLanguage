@@ -515,6 +515,114 @@ class CPPTypeEmitter {
         }
     }
 
+    coercePrimitivers(exp: string, from: MIRType, into: MIRType): string {
+        const trfrom = this.getCPPReprFor(from);
+        const trinto = this.getCPPReprFor(into);
+
+        if (trfrom instanceof NoneRepr) {
+            assert(!(trinto instanceof NoneRepr) && !(trinto instanceof StructRepr) && !(trinto instanceof RefRepr), "Should not be possible");
+
+            if (trinto instanceof KeyValueRepr) {
+                return "((BSQ::KeyValue)BSQ_VALUE_NONE)";
+            }
+            else {
+                return "((BSQ::Value)BSQ_VALUE_NONE)";
+            }
+        }
+        else if (trfrom instanceof StructRepr) {
+            assert(!(trinto instanceof NoneRepr) && !(trinto instanceof StructRepr) && !(trinto instanceof RefRepr), "Should not be possible");
+
+            let cc = "[INVALID]";
+            if (trfrom.base === "BSQBool") {
+                cc = `BSQ_ENCODE_VALUE_BOOL(${exp})`;
+            }
+            else if (trfrom.base === "int64_t") {
+                cc = `BSQ_ENCODE_VALUE_TAGGED_INT(${exp})`;
+            }
+            else if (trfrom.base === "double" || trfrom.base === "BSQEnum" || trfrom.base === "BSQIdKeySimple" || trfrom.base === "BSQIdKeyCompound") {
+                const scope = this.mangleStringForCpp("$scope$");
+                const ops = this.getFunctorsForType(from);
+                cc = `BSQ_NEW_ADD_SCOPE(${scope}, ${trfrom.boxed}, ${trfrom.nominaltype}, ${ops.inc}{}(${exp}))`;
+            }
+            else {
+                const scope = this.mangleStringForCpp("$scope$");
+                const ops = this.getFunctorsForType(from);
+                cc = `BSQ_NEW_ADD_SCOPE(${scope}, ${trfrom.boxed}, ${ops.inc}{}(${exp}))`;
+            }
+                
+            if (trinto instanceof KeyValueRepr) {
+                return `((BSQ::KeyValue)${cc})`;
+            }
+            else {
+                return `((BSQ::Value)${cc})`;
+            }
+        }
+        else if (trfrom instanceof RefRepr) {
+            assert(!(trinto instanceof NoneRepr) && !(trinto instanceof StructRepr) && !(trinto instanceof RefRepr), "Should not be possible");
+
+            if (trinto instanceof KeyValueRepr) {
+                return `((BSQ::KeyValue)${exp})`;
+            }
+            else {
+                return `((BSQ::Value)${exp})`;
+            }
+        }
+        else if (trfrom instanceof KeyValueRepr) {
+            if (trinto instanceof NoneRepr) {
+                return `BSQ_VALUE_NONE`;
+            }
+            else if (trinto instanceof StructRepr) {
+                if (trinto.base === "BSQBool") {
+                    return `BSQ_GET_VALUE_BOOL(${exp})`;
+                }
+                else if (trinto.base === "int64_t") {
+                    return `BSQ_GET_VALUE_TAGGED_INT(${exp})`;
+                }
+                else {
+                    if(trinto.base === "BSQTuple" || trinto.base === "BSQRecord") {
+                        return `*(BSQ_GET_VALUE_PTR(${exp}, ${trinto.base}))`;
+                    }
+                    else {
+                        return `BSQ_GET_VALUE_PTR(${exp}, ${trinto.boxed})->bval`;
+                    }
+                }
+            }
+            else if (trinto instanceof RefRepr) {
+                return `BSQ_GET_VALUE_PTR(${exp}, ${trinto.base})`;
+            }
+            else {
+                return `((BSQ::Value)${exp})`;
+            }
+        }
+        else {
+            if (trinto instanceof NoneRepr) {
+                return `BSQ_VALUE_NONE`;
+            }
+            else if (trinto instanceof StructRepr) {
+                if (trinto.base === "BSQBool") {
+                    return `BSQ_GET_VALUE_BOOL(${exp})`;
+                }
+                else if (trinto.base === "int64_t") {
+                    return `BSQ_GET_VALUE_TAGGED_INT(${exp})`;
+                }
+                else {
+                    if(trinto.base === "BSQTuple" || trinto.base === "BSQRecord") {
+                        return `*(BSQ_GET_VALUE_PTR(${exp}, ${trinto.base}))`;
+                    }
+                    else {
+                        return `BSQ_GET_VALUE_PTR(${exp}, ${trinto.boxed})->bval`;
+                    }
+                }
+            }
+            else if (trinto instanceof RefRepr) {
+                return `BSQ_GET_VALUE_PTR(${exp}, ${trinto.base})`;
+            }
+            else {
+                return `((BSQ::KeyValue)${exp})`;
+            } 
+        }
+    }
+
     coerce(exp: string, from: MIRType, into: MIRType): string {
         const trfrom = this.getCPPReprFor(from);
         const trinto = this.getCPPReprFor(into);
@@ -529,6 +637,25 @@ class CPPTypeEmitter {
         }
 
         return this.coercePrimitive(exp, from, into);
+    }
+
+    coercers(exp: string, from: MIRType, into: MIRType): string {
+        const trfrom = this.getCPPReprFor(from);
+        const trinto = this.getCPPReprFor(into);
+
+        if (trfrom.base === trinto.base) {
+            return exp;
+        }
+
+        const rsexp = `BSQ::`+exp;
+
+        if(this.typecheckEphemeral(from) && this.typecheckEphemeral(into)) {
+            const cfunc = this.generateEphemeralListConvert(from, into);
+            
+            return `BSQ::${cfunc}(${rsexp})`;
+        }
+
+        return this.coercePrimitivers(rsexp, from, into);
     }
     
     tupleHasIndex(tt: MIRType, idx: number): "yes" | "no" | "maybe" {

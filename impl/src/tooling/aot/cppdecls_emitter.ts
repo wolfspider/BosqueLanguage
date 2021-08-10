@@ -347,6 +347,7 @@ class CPPEmitter {
 
         const scopevar = bodyemitter.varNameToCppName("$scope$");
         let scopev = `BSQRefScope ${scopevar};`;
+        let scopevrs = `BSQ::BSQRefScope ${scopevar};`;
 
         let callargs = entrypoint.params.map((p) => p.type !== "NSCore::String" ? p.name : `&${p.name}`);
         const resrc = typeemitter.getRefCountableStatus(restype);
@@ -355,10 +356,11 @@ class CPPEmitter {
         }
         const callv = `${bodyemitter.invokenameToCPP(entrypointname)}(${callargs.join(", ")})`;
         const fcall = `std::cout << diagnostic_format(${typeemitter.coerce(callv, restype, typeemitter.anyType)}) << "\\n"`;
+        const fcallrs = `std::cout << BSQ::diagnostic_format(${typeemitter.coercers(callv, restype, typeemitter.anyType)}) << "\\n"`;
 
         const maincall = `${mainsig} {\n\n${convargs.join("\n")}\n\n  try {\n    ${scopev}\n    ${fcall};\n    fflush(stdout);\n    return 0;\n  } catch (BSQAbort& abrt) HANDLE_BSQ_ABORT(abrt) \n}\n`;
 
-        const maincallrs = `try {\n    ${scopev}\n    ${fcall};\n    std::cout << name_ptr << std::endl;\n    fflush(stdout);\n    return 0;\n  } catch (BSQAbort& abrt) HANDLE_BSQ_ABORT(abrt);\n`;
+        const maincallrs = `try {\n    ${scopevrs}\n    ${fcallrs};\n    std::cout << name_ptr << std::endl;\n    fflush(stdout);\n    return 0;\n  } catch (BSQ::BSQAbort& abrt) HANDLE_BSQ_ABORT(abrt);\n`;
 
         return {
             STATIC_STRING_DECLARE: conststring_declare.sort().join("\n  "),

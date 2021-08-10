@@ -296,8 +296,6 @@ setImmediate((): void => {
         + "let name_ptr = name.as_ptr();\n"
         + "let r = unsafe {\n"
         + "cpp!([name_ptr as \"const char *\"] -> u32 as \"int32_t\" {\n"
-        + "\n"
-        + "    using namespace BSQ;"
         + "\n\n/*main decl*/\n"
         + "    " + cparams.MAIN_CALLRS
         + "    })\n"
