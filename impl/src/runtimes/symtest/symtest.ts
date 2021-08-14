@@ -16,18 +16,21 @@ import chalk from "chalk";
 
 const binroot = Path.normalize(Path.join(__dirname, "../../"));
 
-/*let platpathsmt: string | undefined = undefined;
+let platpathsmt: string | undefined = undefined;
 if (process.platform === "win32") {
     platpathsmt = "bin/win/z3.exe";
 }
 else if (process.platform === "linux") {
     platpathsmt = "bin/linux/z3";
 }
+else if (process.platform === "freebsd") {
+    platpathsmt = "bin/freebsd/z3";
+}
 else {
     platpathsmt = "bin/macos/z3";
-}*/
+}
 
-//const z3path = Path.normalize(Path.join(__dirname, "../../tooling/bmc/runtime", platpathsmt));
+const z3path = Path.normalize(Path.join(__dirname, "../../tooling/bmc/runtime", platpathsmt));
 
 function generateMASM(files: string[], corelibpath: string): MIRAssembly {
     let bosque_dir: string = Path.normalize(Path.join(__dirname, "../../"));
@@ -130,7 +133,7 @@ setImmediate(() => {
         }
 
         try {
-            const res = execSync(`z3 -smt2 -in`, { input: contents }).toString().trim();
+            const res = execSync(`${z3path} -smt2 -in`, { input: contents }).toString().trim();
 
             if (res === "unsat") {
                 process.stdout.write(chalk.green("Verified up to bound -- no errors found!\n"));

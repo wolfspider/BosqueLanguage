@@ -38,4 +38,9 @@ if(process.platform === "darwin") {
     sh.execSync(`chmod a+x ${z3path}`);
 }
 
+if(process.platform === "freebsd") {
+    const z3path = path.join(rootbin, "/tooling/bmc/runtime/bin/freebsd/z3")
+    sh.execSync(`ln -s -f /usr/local/bin/z3 ${z3path}`);
+}
+
 process.stdout.write(`done!\n`);

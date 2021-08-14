@@ -60,7 +60,7 @@ function generateMASM(files: string[], blevel: "debug" | "test" | "release", cor
 program
     .option("-e --entrypoint [entrypoint]", "Entrypoint of the exe", "NSMain::main")
     .option("-o --outfile [outfile]", "Optional name of the output exe", (process.platform === "win32") ? "a.exe" : "a.out")
-    .option("-c --compiler [compiler]", "Compiler to use", (process.platform === "win32") ? "clang.exe" : "doas cling -noruntime")
+    .option("-c --compiler [compiler]", "Compiler to use", (process.platform === "win32") ? "clang.exe" : "cling -noruntime")
     .option("-l --level [level]", "Build level version", "debug")
     .option("-f --flags <flags>", "Custom compiler flags", "")
 

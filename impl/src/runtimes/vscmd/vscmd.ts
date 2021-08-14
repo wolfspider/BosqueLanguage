@@ -22,6 +22,9 @@ if (process.platform === "win32") {
 else if (process.platform === "linux") {
     platpathsmt = "bin/linux/z3";
 }
+else if (process.platform === "freebsd") {
+    platpathsmt = "bin/freebsd/z3"
+}
 else {
     platpathsmt = "bin/macos/z3";
 }

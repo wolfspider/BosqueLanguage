@@ -22,8 +22,13 @@ else if (process.platform === "linux") {
     platpathsmt = "bin/linux/z3";
     platexe = "doit.out";
 }
+else if (process.platform === "freebsd") {
+    platpathcpp = "clang++";
+    platpathsmt = "bin/freebsd/z3";
+    platexe = "doit.out";
+}
 else {
-    platpathcpp = "/usr/local/llvm10/bin/clang++";
+    platpathcpp = "clang++";
     platpathsmt = "bin/macos/z3";
     platexe = "doit.out";
 }
