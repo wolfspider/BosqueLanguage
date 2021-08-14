@@ -601,5 +601,5 @@ public:
         return BSQ_NEW_NO_RC(RType, ntype, move(entries));
     }
 };
-#pragma clang diagnostic pop;
+#pragma clang diagnostic pop
 }
